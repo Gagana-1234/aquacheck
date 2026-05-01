@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AquaWatch — Network Health</title>
+  <meta name="description" content="Composite network health score with AI-powered risk assessment for water distribution systems."/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">💧</div>
+    <h1>Aqua<span>Watch</span></h1>
+  </div>
+  <div class="sidebar-section">Navigation</div>
+  <a href="index.html" class="nav-item" id="nav-dashboard"><span class="nav-icon">📊</span> Dashboard</a>
+  <a href="zones.html" class="nav-item" id="nav-zones"><span class="nav-icon">🗺️</span> Zone Monitor</a>
+  <a href="anomalies.html" class="nav-item" id="nav-anomalies"><span class="nav-icon">⚠️</span> Anomalies</a>
+  <a href="redistribution.html" class="nav-item" id="nav-redist"><span class="nav-icon">🔄</span> Redistribution</a>
+  <a href="reports.html" class="nav-item" id="nav-reports"><span class="nav-icon">📋</span> Reports</a>
+  <a href="network.html" class="nav-item active" id="nav-network"><span class="nav-icon">🧠</span> Net Health</a>
+  <div class="sidebar-status">
+    <div class="status-dot"><div class="dot"></div> System Online</div>
+    <div class="status-dot mt-4"><span style="font-size:10px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace" id="sidebar-time"></span></div>
+  </div>
+</nav>
+
+<div class="main-content">
+  <div class="top-bar">
+    <div>
+      <h2>Network Health</h2>
+      <div style="font-size:12px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;margin-top:2px">AI-powered composite health scoring</div>
+    </div>
+    <div class="top-bar-right">
+      <div class="time-display" id="live-clock"></div>
+      <button class="btn btn-ghost btn-sm" onclick="loadNetworkHealth()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <div class="page-body" id="health-container">
+    <!-- Gauge + Grade Row -->
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:24px;margin-bottom:24px;align-items:center">
+      <div class="card" style="padding:24px;text-align:center;min-width:280px">
+        <div class="card-title" style="margin-bottom:16px">COMPOSITE SCORE</div>
+        <canvas id="health-gauge" width="280" height="160"></canvas>
+        <div id="risk-badge" style="margin-top:12px;display:flex;align-items:center;justify-content:center"></div>
+      </div>
+      <div class="card" style="padding:24px">
+        <div class="card-title" style="margin-bottom:20px">HEALTH FACTORS</div>
+        <div id="factor-bars"></div>
+      </div>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+      <div class="stat-card" style="--accent-color:var(--accent-cyan)">
+        <div class="stat-label">Total Zones</div>
+        <div class="stat-value" id="hs-zones">—</div>
+        <div class="stat-sub">Monitored zones</div>
+        <div class="stat-icon">🗺️</div>
+      </div>
+      <div class="stat-card" style="--accent-color:var(--accent-red)">
+        <div class="stat-label">Critical Zones</div>
+        <div class="stat-value" id="hs-critical">—</div>
+        <div class="stat-sub">Require attention</div>
+        <div class="stat-icon">🚨</div>
+      </div>
+      <div class="stat-card" style="--accent-color:var(--accent-orange)">
+        <div class="stat-label">Anomaly Rate 24h</div>
+        <div class="stat-value" id="hs-anomrate">—</div>
+        <div class="stat-sub">Of all readings</div>
+        <div class="stat-icon">⚠️</div>
+      </div>
+      <div class="stat-card" style="--accent-color:var(--accent-yellow)">
+        <div class="stat-label">Unresolved Alerts</div>
+        <div class="stat-value" id="hs-alerts">—</div>
+        <div class="stat-sub">Pending review</div>
+        <div class="stat-icon">🔔</div>
+      </div>
+    </div>
+
+    <!-- Scoring Guide -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">🧠 How Health Score Is Computed</span></div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:20px">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px">FACTOR WEIGHTS</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div class="flex justify-between"><span class="text-sm text-muted">Zone Status Health</span><span class="text-mono text-cyan text-sm">35%</span></div>
+              <div class="flex justify-between"><span class="text-sm text-muted">Anomaly Rate (24h)</span><span class="text-mono text-cyan text-sm">25%</span></div>
+              <div class="flex justify-between"><span class="text-sm text-muted">Avg Deviation Score</span><span class="text-mono text-cyan text-sm">25%</span></div>
+              <div class="flex justify-between"><span class="text-sm text-muted">Alert Health</span><span class="text-mono text-cyan text-sm">15%</span></div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px">GRADE SCALE</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div class="flex justify-between"><span class="text-sm" style="color:var(--accent-green)">A — Excellent</span><span class="text-mono text-sm text-muted">≥ 90</span></div>
+              <div class="flex justify-between"><span class="text-sm" style="color:var(--accent-cyan)">B — Good</span><span class="text-mono text-sm text-muted">≥ 80</span></div>
+              <div class="flex justify-between"><span class="text-sm" style="color:var(--accent-yellow)">C — Fair</span><span class="text-mono text-sm text-muted">≥ 70</span></div>
+              <div class="flex justify-between"><span class="text-sm" style="color:var(--accent-orange)">D — Poor</span><span class="text-mono text-sm text-muted">≥ 60</span></div>
+              <div class="flex justify-between"><span class="text-sm" style="color:var(--accent-red)">F — Critical</span><span class="text-mono text-sm text-muted">&lt; 60</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/network.js"></script>
+</body>
+</html>

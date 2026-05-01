@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AquaWatch — Water Systems Monitoring Dashboard</title>
+  <meta name="description" content="Real-time water distribution monitoring dashboard with anomaly detection and zone analytics."/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    #particle-canvas { position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:0.18; }
+    .main-content, .sidebar { position:relative;z-index:1; }
+  </style>
+</head>
+<body>
+<canvas id="particle-canvas"></canvas>
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">💧</div>
+    <h1>Aqua<span>Watch</span></h1>
+  </div>
+  <div class="sidebar-section">Navigation</div>
+  <a href="index.html" class="nav-item active" id="nav-dashboard">
+    <span class="nav-icon">📊</span> Dashboard
+  </a>
+  <a href="zones.html" class="nav-item" id="nav-zones">
+    <span class="nav-icon">🗺️</span> Zone Monitor
+  </a>
+  <a href="anomalies.html" class="nav-item" id="nav-anomalies">
+    <span class="nav-icon">⚠️</span> Anomalies
+  </a>
+  <a href="redistribution.html" class="nav-item" id="nav-redist">
+    <span class="nav-icon">🔄</span> Redistribution
+  </a>
+  <a href="reports.html" class="nav-item" id="nav-reports">
+    <span class="nav-icon">📋</span> Reports
+  </a>
+  <a href="network.html" class="nav-item" id="nav-network">
+    <span class="nav-icon">🧠</span> Net Health
+  </a>
+  <div class="sidebar-status">
+    <div class="status-dot"><div class="dot"></div> System Online</div>
+    <div class="status-dot mt-4" style="margin-top:6px">
+      <span style="font-size:10px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace" id="sidebar-time"></span>
+    </div>
+  </div>
+</nav>
+
+<!-- Main -->
+<div class="main-content">
+  <div class="top-bar">
+    <div>
+      <h2>Mission Control</h2>
+      <div style="font-size:12px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;margin-top:2px">Water Distribution Overview</div>
+    </div>
+    <div class="top-bar-right">
+      <div class="time-display" id="live-clock"></div>
+      <button class="btn btn-ghost btn-sm" onclick="loadDashboard()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <div class="page-body">
+    <!-- Stat Cards -->
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card" style="--accent-color:var(--accent-cyan)">
+        <div class="stat-label">Total Zones</div>
+        <div class="stat-value" id="stat-zones">—</div>
+        <div class="stat-sub">Distribution zones</div>
+        <div class="stat-icon">🗺️</div>
+      </div>
+      <div class="stat-card" style="--accent-color:var(--accent-red)">
+        <div class="stat-label">Active Leaks</div>
+        <div class="stat-value" id="stat-leaks">—</div>
+        <div class="stat-sub">Critical zones</div>
+        <div class="stat-icon">🚨</div>
+      </div>
+      <div class="stat-card" style="--accent-color:var(--accent-orange)">
+        <div class="stat-label">Anomalies Today</div>
+        <div class="stat-value" id="stat-anomalies">—</div>
+        <div class="stat-sub">Flagged readings</div>
+        <div class="stat-icon">⚠️</div>
+      </div>
+      <div class="stat-card" style="--accent-color:var(--accent-green)">
+        <div class="stat-label">Water Saved</div>
+        <div class="stat-value" id="stat-saved">—</div>
+        <div class="stat-sub">Litres / 24h optimised</div>
+        <div class="stat-icon">💧</div>
+      </div>
+    </div>
+
+    <!-- Zone Map + Alerts -->
+    <div class="dashboard-grid">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🗺️ Zone Distribution Map</span>
+          <span class="text-xs text-muted">Click zone for details</span>
+        </div>
+        <div class="card-body">
+          <div class="zone-map-grid" id="zone-map"></div>
+          <div style="display:flex;gap:16px;margin-top:14px;flex-wrap:wrap">
+            <div class="flex items-center gap-8"><span style="width:10px;height:10px;border-radius:50%;background:var(--accent-green);display:inline-block"></span><span class="text-xs text-muted">Normal</span></div>
+            <div class="flex items-center gap-8"><span style="width:10px;height:10px;border-radius:50%;background:var(--accent-orange);display:inline-block"></span><span class="text-xs text-muted">Anomaly</span></div>
+            <div class="flex items-center gap-8"><span style="width:10px;height:10px;border-radius:50%;background:var(--accent-red);display:inline-block"></span><span class="text-xs text-muted">Critical</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🚨 Active Alerts</span>
+          <a href="anomalies.html" class="btn btn-ghost btn-sm">View All</a>
+        </div>
+        <div class="card-body" id="alerts-panel">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Consumption Chart -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📈 24-Hour Network Consumption</span>
+        <span class="text-xs text-muted font-mono">Total L/hr across all zones</span>
+      </div>
+      <div class="card-body" style="height:280px">
+        <canvas id="consumption-chart"></canvas>
+      </div>
+      <!-- Live data ticker -->
+      <div class="ticker-wrap" id="live-ticker">
+        <span class="ticker-inner" id="ticker-text">Loading live data…</span>
+      </div>
+    </div>
+
+    <!-- Network Health Mini Card -->
+    <div class="card mt-20" id="health-mini-card" style="display:none">
+      <div class="card-header">
+        <span class="card-title">🧠 Network Health</span>
+        <a href="network.html" class="btn btn-ghost btn-sm">Full Report →</a>
+      </div>
+      <div class="card-body" style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+        <canvas id="mini-gauge" width="120" height="70"></canvas>
+        <div id="health-mini-stats" style="flex:1"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/dashboard.js"></script>
+<script>
+// Animated water particles
+(function(){
+  const c=document.getElementById('particle-canvas');
+  const ctx=c.getContext('2d');
+  let W,H,pts=[];
+  function resize(){W=c.width=window.innerWidth;H=c.height=window.innerHeight;}
+  window.addEventListener('resize',resize);resize();
+  for(let i=0;i<60;i++)pts.push({x:Math.random()*2000,y:Math.random()*1200,r:Math.random()*2+0.5,vx:(Math.random()-0.5)*0.3,vy:-Math.random()*0.4-0.1,a:Math.random()});
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    pts.forEach(p=>{
+      p.x+=p.vx;p.y+=p.vy;p.a+=0.005;
+      if(p.y<-5)p.y=H+5;
+      if(p.x<0)p.x=W;if(p.x>W)p.x=0;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r*(0.8+0.2*Math.sin(p.a)),0,Math.PI*2);
+      ctx.fillStyle=`rgba(0,194,255,${0.4+0.3*Math.sin(p.a)})`;
+      ctx.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>
+</body>
+</html>

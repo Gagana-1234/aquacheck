@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AquaWatch — Zone Monitor</title>
+  <meta name="description" content="Monitor all water distribution zones, consumption baselines and status."/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">💧</div>
+    <h1>Aqua<span>Watch</span></h1>
+  </div>
+  <div class="sidebar-section">Navigation</div>
+  <a href="index.html" class="nav-item">📊 Dashboard</a>
+  <a href="zones.html" class="nav-item active">🗺️ Zone Monitor</a>
+  <a href="anomalies.html" class="nav-item">⚠️ Anomalies</a>
+  <a href="redistribution.html" class="nav-item">🔄 Redistribution</a>
+  <a href="reports.html" class="nav-item">📋 Reports</a>
+  <a href="network.html" class="nav-item">🧠 Net Health</a>
+  <div class="sidebar-status">
+    <div class="status-dot"><div class="dot"></div> System Online</div>
+    <div class="status-dot mt-4"><span style="font-size:10px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace" id="sidebar-time"></span></div>
+  </div>
+</nav>
+<div class="main-content">
+  <div class="top-bar">
+    <div>
+      <h2>Zone Monitor</h2>
+      <div style="font-size:12px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;margin-top:2px">Real-time distribution zone analytics</div>
+    </div>
+    <div class="top-bar-right">
+      <div class="time-display" id="live-clock"></div>
+      <button class="btn btn-ghost btn-sm" onclick="loadZones()">↻ Refresh</button>
+    </div>
+  </div>
+  <div class="page-body">
+    <div class="filter-bar">
+      <input class="search-input" type="text" id="search-input" placeholder="Search zones…"/>
+      <select class="filter-select" id="status-filter">
+        <option value="">All Status</option>
+        <option value="Normal">Normal</option>
+        <option value="Anomaly">Anomaly</option>
+        <option value="Critical">Critical</option>
+      </select>
+      <select class="filter-select" id="sort-select">
+        <option value="deviation">Sort: Deviation</option>
+        <option value="name">Sort: Name</option>
+        <option value="consumption">Sort: Consumption</option>
+      </select>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🗺️ Distribution Zones</span>
+        <span class="text-xs text-muted" id="zone-count"></span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table" id="zones-table">
+          <thead>
+            <tr>
+              <th>Zone ID</th>
+              <th>Zone Name</th>
+              <th>Region</th>
+              <th>Current (L/hr)</th>
+              <th>Baseline (L/hr)</th>
+              <th>Deviation</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="zones-tbody">
+            <tr><td colspan="8"><div class="spinner"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <!-- Expand panel for 7-day chart -->
+    <div class="card mt-20" id="zone-detail-panel" style="display:none">
+      <div class="card-header">
+        <span class="card-title" id="detail-zone-name">Zone Detail</span>
+        <button class="btn btn-ghost btn-sm" onclick="closeDetail()">✕ Close</button>
+      </div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px" id="detail-stats"></div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px">
+          <div style="height:260px"><canvas id="zone-trend-chart"></canvas></div>
+          <div class="card" style="padding:16px;background:var(--bg-card2)" id="forecast-panel">
+            <div class="spinner" style="width:20px;height:20px;margin:12px auto"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/zones.js"></script>
+</body>
+</html>
