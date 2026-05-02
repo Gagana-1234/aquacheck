@@ -4,81 +4,114 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>AquaWatch — Admin Panel</title>
+  <meta name="description" content="Admin panel to review and verify community water reports and award AquaCoins."/>
   <link rel="stylesheet" href="css/style.css"/>
   <style>
-    .admin-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
-    .report-card {
-      background:var(--bg-card); border:1px solid var(--border-subtle);
-      border-radius:14px; padding:20px; margin-bottom:14px;
-      transition:border-color 0.2s;
+    /* ── Password Gate ── */
+    #pw-gate {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--bg-primary);
+      display: flex; align-items: center; justify-content: center;
     }
-    .report-card:hover { border-color:var(--border-glow); }
-    .report-card.pending  { border-left:3px solid #FFD166; }
-    .report-card.verified { border-left:3px solid var(--accent-green); opacity:0.7; }
-    .report-card.rejected { border-left:3px solid var(--accent-red); opacity:0.6; }
+    #pw-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-glow);
+      border-radius: 16px;
+      padding: 40px 48px;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(0,194,255,0.08);
+      width: 100%; max-width: 380px;
+    }
+    #pw-box .pw-icon  { font-size: 52px; margin-bottom: 16px; }
+    #pw-box h2        { font-size: 20px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+    #pw-box .pw-sub   { font-size: 12px; color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; margin-bottom: 24px; }
+    #pw-input {
+      width: 100%; background: var(--bg-card2);
+      border: 1px solid var(--border-glow);
+      border-radius: 8px; padding: 12px 16px;
+      color: var(--text-primary); font-size: 15px;
+      font-family: 'IBM Plex Mono', monospace;
+      letter-spacing: 3px; outline: none; text-align: center;
+      margin-bottom: 14px;
+    }
+    #pw-input:focus { border-color: var(--accent-cyan); box-shadow: 0 0 0 3px rgba(0,194,255,0.1); }
+    #pw-err { color: var(--accent-red); font-size: 12px; margin-top: 8px; min-height: 16px; font-family: 'IBM Plex Mono', monospace; }
+    .report-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 20px 24px;
+      margin-bottom: 14px;
+      transition: border-color 0.2s;
+      border-left: 3px solid transparent;
+    }
+    .report-card:hover { border-color: var(--border-glow); }
+    .report-card.pending  { border-left-color: #FFD166; }
+    .report-card.verified { border-left-color: var(--accent-green); opacity: 0.75; }
+    .report-card.rejected { border-left-color: var(--accent-red); opacity: 0.6; }
 
-    .rc-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
+    .rc-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
     .rc-type { font-size:15px; font-weight:700; color:var(--text-primary); }
     .rc-meta { font-size:11px; color:var(--text-muted); font-family:'IBM Plex Mono',monospace; margin-top:3px; }
-    .rc-desc { font-size:13px; color:var(--text-secondary); margin:10px 0; line-height:1.6; }
-    .rc-actions { display:flex; gap:10px; flex-wrap:wrap; }
+    .rc-desc { font-size:13px; color:var(--text-secondary); margin:10px 0; line-height:1.6; font-style:italic; }
 
-    .rc-info-row { display:flex; gap:16px; flex-wrap:wrap; margin:10px 0; }
-    .rc-info-item { font-size:12px; }
-    .rc-info-label { color:var(--text-muted); font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; margin-bottom:2px; }
-    .rc-info-val { color:var(--text-primary); font-weight:600; }
+    .rc-info-row { display:flex; gap:20px; flex-wrap:wrap; margin:12px 0; padding:12px 0; border-top:1px solid var(--border-subtle); border-bottom:1px solid var(--border-subtle); }
+    .rc-info-item .rc-info-label { font-size:10px; color:var(--text-muted); font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:1px; margin-bottom:3px; }
+    .rc-info-item .rc-info-val   { font-size:13px; font-weight:600; color:var(--text-primary); }
 
-    .ai-bar { background:var(--bg-card2); border-radius:6px; height:6px; margin-top:4px; overflow:hidden; }
-    .ai-bar-fill { height:100%; border-radius:6px; transition:width 0.6s ease; }
+    .ai-bar { background:rgba(255,255,255,0.06); border-radius:4px; height:5px; margin-top:5px; width:120px; overflow:hidden; }
+    .ai-bar-fill { height:100%; border-radius:4px; }
 
-    .filter-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:20px; }
-    .filter-row select, .filter-row input { 
-      background:var(--bg-card2); border:1px solid var(--border-glow);
-      border-radius:8px; padding:8px 14px; color:var(--text-primary);
-      font-family:'Rajdhani',sans-serif; font-size:13px; outline:none;
-    }
+    .sev-badge { padding:3px 10px; border-radius:8px; font-size:11px; font-weight:700; font-family:'IBM Plex Mono',monospace; }
+    .sev-Low      { background:rgba(0,194,255,0.12); color:#00C2FF; }
+    .sev-Medium   { background:rgba(255,209,102,0.12); color:#FFD166; }
+    .sev-High     { background:rgba(255,107,53,0.12); color:#FF6B35; }
+    .sev-Critical { background:rgba(255,59,92,0.12); color:#FF3B5C; }
 
-    .toast {
-      position:fixed; bottom:24px; right:24px;
-      padding:14px 20px; border-radius:12px; font-size:14px; font-weight:600;
-      z-index:9999; animation:toastIn 0.3s ease;
-      max-width:320px; box-shadow:0 8px 32px rgba(0,0,0,0.4);
-    }
-    @keyframes toastIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
-    .toast-success { background:#00E5A0; color:#000; }
-    .toast-error   { background:#FF3B5C; color:#fff; }
-
-    .img-thumb { 
-      width:100%; max-height:180px; object-fit:cover;
-      border-radius:8px; border:1px solid var(--border-subtle);
-      margin:10px 0; cursor:pointer;
-    }
-    .sev-badge {
-      padding:3px 10px; border-radius:8px; font-size:11px; font-weight:700;
-      font-family:'IBM Plex Mono',monospace;
-    }
-    .sev-Low      { background:rgba(0,194,255,0.15); color:#00C2FF; }
-    .sev-Medium   { background:rgba(255,209,102,0.15); color:#FFD166; }
-    .sev-High     { background:rgba(255,107,53,0.15); color:#FF6B35; }
-    .sev-Critical { background:rgba(255,59,92,0.15); color:#FF3B5C; }
-    .status-badge {
-      padding:3px 10px; border-radius:8px; font-size:11px; font-weight:700; font-family:'IBM Plex Mono',monospace;
-    }
+    .status-badge { padding:3px 10px; border-radius:8px; font-size:11px; font-weight:700; font-family:'IBM Plex Mono',monospace; }
     .status-Pending  { background:rgba(255,209,102,0.15); color:#FFD166; }
     .status-Verified { background:rgba(0,229,160,0.15); color:#00E5A0; }
     .status-Rejected { background:rgba(255,59,92,0.15); color:#FF3B5C; }
 
-    .empty-admin { text-align:center; padding:60px 20px; color:var(--text-muted); }
-    .empty-admin .empty-icon { font-size:48px; margin-bottom:12px; }
+    .rc-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
 
-    /* Image lightbox */
-    .lightbox { display:none; position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,0.9); align-items:center; justify-content:center; }
+    .img-thumb { width:100%; max-height:200px; object-fit:cover; border-radius:8px; border:1px solid var(--border-subtle); margin:12px 0; cursor:pointer; display:block; }
+    .img-thumb:hover { border-color:var(--accent-cyan); }
+
+    .filter-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:20px; }
+
+    .toast { position:fixed; bottom:24px; right:24px; padding:14px 20px; border-radius:12px; font-size:14px; font-weight:600; z-index:9999; max-width:320px; box-shadow:0 8px 32px rgba(0,0,0,0.4); animation:toastIn 0.3s ease; }
+    @keyframes toastIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+    .toast-success { background:var(--accent-green); color:#000; }
+    .toast-error   { background:var(--accent-red); color:#fff; }
+
+    .lightbox { display:none; position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,0.92); align-items:center; justify-content:center; }
     .lightbox.open { display:flex; }
-    .lightbox img { max-width:90vw; max-height:90vh; border-radius:12px; }
-    .lightbox-close { position:absolute; top:20px; right:24px; font-size:28px; color:#fff; cursor:pointer; background:none; border:none; }
+    .lightbox img  { max-width:90vw; max-height:90vh; border-radius:12px; box-shadow:0 0 60px rgba(0,0,0,0.8); }
+    .lightbox-close { position:absolute; top:20px; right:24px; font-size:28px; color:#fff; cursor:pointer; background:none; border:none; opacity:0.7; }
+    .lightbox-close:hover { opacity:1; }
+
+    .empty-admin { text-align:center; padding:60px 20px; color:var(--text-muted); }
+    .empty-admin .e-icon { font-size:52px; margin-bottom:14px; opacity:0.5; }
+    .empty-admin .e-text { font-size:15px; }
+    .empty-admin .e-sub  { font-size:12px; font-family:'IBM Plex Mono',monospace; margin-top:6px; }
   </style>
 </head>
 <body>
+
+<!-- ── Password Gate ── -->
+<div id="pw-gate">
+  <div id="pw-box">
+    <div class="pw-icon">🛡️</div>
+    <h2>Admin Access</h2>
+    <div class="pw-sub">AquaWatch · Restricted Area</div>
+    <input type="password" id="pw-input" placeholder="Enter password" autocomplete="off"
+           onkeydown="if(event.key==='Enter') checkPassword()"/>
+    <button class="btn btn-primary w-full" onclick="checkPassword()">🔐 Login</button>
+    <div id="pw-err"></div>
+  </div>
+</div>
+
 <nav class="sidebar">
   <div class="sidebar-logo">
     <div class="logo-icon">💧</div>
@@ -102,69 +135,73 @@
   <div class="top-bar">
     <div>
       <h2>🛡️ Admin Panel</h2>
-      <div style="font-size:12px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;margin-top:2px">Review community reports · Award AquaCoins · Manage verifications</div>
+      <div style="font-size:12px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;margin-top:2px">Review reports · Award AquaCoins · Manage verifications</div>
     </div>
     <div class="top-bar-right">
-      <button class="btn btn-ghost btn-sm" onclick="loadReports()">↻ Refresh</button>
-      <button class="btn btn-primary btn-sm" onclick="verifyAll()">✅ Verify All Pending</button>
+      <button class="btn btn-ghost btn-sm" onclick="loadAll()">↻ Refresh</button>
+      <button class="btn btn-success btn-sm" onclick="verifyAll()">✅ Verify All Pending</button>
     </div>
   </div>
 
   <div class="page-body">
 
-    <!-- Stats -->
-    <div class="admin-grid" id="admin-stats">
+    <!-- Summary Stats -->
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
       <div class="stat-card" style="--accent-color:#FFD166">
         <div class="stat-label">Total Reports</div>
         <div class="stat-value" id="s-total">—</div>
-        <div class="stat-sub">All time</div>
+        <div class="stat-sub">All submitted</div>
+        <div class="stat-icon">📋</div>
       </div>
       <div class="stat-card" style="--accent-color:#FFD166">
         <div class="stat-label">Pending Review</div>
         <div class="stat-value" id="s-pending" style="color:#FFD166">—</div>
         <div class="stat-sub">Needs action</div>
+        <div class="stat-icon">⏳</div>
       </div>
       <div class="stat-card" style="--accent-color:var(--accent-green)">
         <div class="stat-label">Verified</div>
         <div class="stat-value" id="s-verified">—</div>
         <div class="stat-sub">Coins awarded</div>
+        <div class="stat-icon">✅</div>
       </div>
       <div class="stat-card" style="--accent-color:var(--accent-cyan)">
-        <div class="stat-label">Total Coins Given</div>
+        <div class="stat-label">Coins Distributed</div>
         <div class="stat-value" id="s-coins">—</div>
-        <div class="stat-sub">AquaCoins</div>
+        <div class="stat-sub">Total AquaCoins</div>
+        <div class="stat-icon">🪙</div>
       </div>
     </div>
 
     <!-- Filters -->
     <div class="filter-row">
-      <select id="filter-status" onchange="loadReports()">
+      <select class="filter-select" id="filter-status" onchange="loadReports()">
         <option value="Pending">🟡 Pending Only</option>
         <option value="">All Reports</option>
         <option value="Verified">✅ Verified</option>
         <option value="Rejected">❌ Rejected</option>
       </select>
-      <select id="filter-type" onchange="loadReports()">
+      <select class="filter-select" id="filter-type" onchange="loadReports()">
         <option value="">All Types</option>
         <option value="pipe_leak">🔧 Pipe Leak</option>
         <option value="unauthorized_discharge">🚫 Unauthorized</option>
         <option value="water_wastage">💦 Wastage</option>
         <option value="other">🔍 Other</option>
       </select>
-      <div style="font-size:12px;color:var(--text-muted)" id="report-count"></div>
+      <span id="report-count" style="font-size:12px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace"></span>
     </div>
 
-    <!-- Report List -->
+    <!-- Reports Container -->
     <div id="reports-container">
-      <div class="spinner" style="margin:40px auto"></div>
+      <div class="spinner"></div>
     </div>
 
   </div>
 </div>
 
-<!-- Image Lightbox -->
+<!-- Lightbox -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
-  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <button class="lightbox-close">✕</button>
   <img id="lightbox-img" src="" alt="Report photo"/>
 </div>
 
@@ -173,68 +210,85 @@
 const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
   ? 'http://localhost:8000' : '';
 
-const TYPE_LABELS = {
-  pipe_leak: '🔧 Pipe Leak',
-  unauthorized_discharge: '🚫 Unauthorized Discharge',
-  water_wastage: '💦 Water Wastage',
-  other: '🔍 Other'
+const TYPE_MAP = {
+  pipe_leak:'🔧 Pipe Leak',
+  unauthorized_discharge:'🚫 Unauthorized Discharge',
+  water_wastage:'💦 Water Wastage',
+  other:'🔍 Other'
 };
 
-async function fetchJSON(url) {
+const COIN_TABLE = {
+  pipe_leak:              {Low:60,Medium:100,High:150,Critical:180},
+  unauthorized_discharge: {Low:80,Medium:140,High:200,Critical:250},
+  water_wastage:          {Low:40,Medium:70, High:100,Critical:120},
+  other:                  {Low:20,Medium:30, High:50, Critical:80 },
+};
+
+async function apiFetch(url, options={}) {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 30000);
+  const t = setTimeout(()=>ctrl.abort(), 30000);
   try {
-    const r = await fetch(url, { signal: ctrl.signal });
-    return r.json();
+    const r = await fetch(url, {...options, signal:ctrl.signal});
+    return r;
   } finally { clearTimeout(t); }
 }
 
 async function loadStats() {
   try {
-    const d = await fetchJSON(`${API}/community/stats`);
-    document.getElementById('s-total').textContent   = d.total_reports;
+    const r = await apiFetch(`${API}/community/stats`);
+    const d = await r.json();
+    document.getElementById('s-total').textContent    = d.total_reports;
     document.getElementById('s-pending').textContent  = d.pending_reports;
     document.getElementById('s-verified').textContent = d.verified_reports;
-    document.getElementById('s-coins').textContent    = d.total_aqua_coins_distributed.toLocaleString();
-  } catch(e) {}
+    document.getElementById('s-coins').textContent    = (d.total_aqua_coins_distributed||0).toLocaleString();
+  } catch(e){}
 }
 
 async function loadReports() {
   const status = document.getElementById('filter-status').value;
   const type   = document.getElementById('filter-type').value;
   const el     = document.getElementById('reports-container');
-  el.innerHTML = '<div class="spinner" style="margin:40px auto"></div>';
-
+  el.innerHTML = '<div class="spinner"></div>';
   let url = `${API}/community/reports?limit=100`;
   if (status) url += `&status=${status}`;
   if (type)   url += `&report_type=${type}`;
-
   try {
-    const reports = await fetchJSON(url);
-    document.getElementById('report-count').textContent = `${reports.length} report${reports.length !== 1 ? 's' : ''}`;
-
+    const r = await apiFetch(url);
+    const reports = await r.json();
+    document.getElementById('report-count').textContent =
+      `Showing ${reports.length} report${reports.length!==1?'s':''}`;
     if (!reports.length) {
-      el.innerHTML = `<div class="empty-admin"><div class="empty-icon">✅</div><div>No reports match this filter</div></div>`;
+      el.innerHTML = `<div class="empty-admin">
+        <div class="e-icon">✅</div>
+        <div class="e-text">No reports match this filter</div>
+        <div class="e-sub">Try changing the filter above</div>
+      </div>`;
       return;
     }
-
-    el.innerHTML = reports.map(r => renderCard(r)).join('');
+    el.innerHTML = reports.map(r => buildCard(r)).join('');
   } catch(e) {
-    el.innerHTML = `<div class="empty-admin"><div class="empty-icon">⚠️</div><div>Could not load reports. Server may be waking up — refresh in 30s.</div></div>`;
+    el.innerHTML = `<div class="empty-admin">
+      <div class="e-icon">⚠️</div>
+      <div class="e-text">Could not load reports</div>
+      <div class="e-sub">Server may be waking up — try Refresh in 30s</div>
+    </div>`;
   }
 }
 
-function renderCard(r) {
-  const conf     = Math.round((r.ai_confidence || 0) * 100);
-  const barColor = conf >= 72 ? '#00E5A0' : conf >= 50 ? '#FFD166' : '#FF3B5C';
-  const coins    = coinEstimate(r.report_type, r.severity);
+function buildCard(r) {
+  const conf = Math.round((r.ai_confidence||0)*100);
+  const barColor = conf>=72 ? 'var(--accent-green)' : conf>=50 ? '#FFD166' : 'var(--accent-red)';
+  const estCoins = (COIN_TABLE[r.report_type]||COIN_TABLE.other)[r.severity] || 30;
 
-  return `
-  <div class="report-card ${r.status.toLowerCase()}" id="card-${r.id}">
+  return `<div class="report-card ${r.status.toLowerCase()}" id="card-${r.id}">
     <div class="rc-top">
       <div>
-        <div class="rc-type">${TYPE_LABELS[r.report_type] || r.report_type}</div>
-        <div class="rc-meta">by <strong style="color:var(--text-primary)">${esc(r.reporter_name)}</strong> · #${r.id} · ${timeAgo(r.submitted_at)}</div>
+        <div class="rc-type">${TYPE_MAP[r.report_type]||r.report_type}</div>
+        <div class="rc-meta">
+          by <strong style="color:var(--text-primary)">${esc(r.reporter_name)}</strong>
+          &nbsp;·&nbsp; Report #${r.id}
+          &nbsp;·&nbsp; ${timeAgo(r.submitted_at)}
+        </div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
         <span class="sev-badge sev-${r.severity}">${r.severity}</span>
@@ -247,118 +301,125 @@ function renderCard(r) {
     <div class="rc-info-row">
       <div class="rc-info-item">
         <div class="rc-info-label">Location</div>
-        <div class="rc-info-val">${esc(r.location_text || '—')}</div>
+        <div class="rc-info-val">${esc(r.location_text||'Not specified')}</div>
       </div>
       <div class="rc-info-item">
         <div class="rc-info-label">Zone</div>
-        <div class="rc-info-val">${esc(r.zone_name || '—')}</div>
+        <div class="rc-info-val">${esc(r.zone_name||'Unknown')}</div>
       </div>
       <div class="rc-info-item">
         <div class="rc-info-label">Photo</div>
-        <div class="rc-info-val">${r.has_image ? '✅ Attached' : '❌ None'}</div>
+        <div class="rc-info-val">${r.has_image ? '✅ Attached' : '❌ No photo'}</div>
       </div>
       <div class="rc-info-item">
         <div class="rc-info-label">AI Confidence</div>
         <div class="rc-info-val" style="color:${barColor}">${conf}%</div>
         <div class="ai-bar"><div class="ai-bar-fill" style="width:${conf}%;background:${barColor}"></div></div>
       </div>
-      ${r.status === 'Verified' ? `<div class="rc-info-item">
-        <div class="rc-info-label">Coins Awarded</div>
-        <div class="rc-info-val" style="color:#FFD166">🪙 ${r.aqua_coins_awarded}</div>
-      </div>` : `<div class="rc-info-item">
-        <div class="rc-info-label">Coins if Verified</div>
-        <div class="rc-info-val" style="color:#FFD166">🪙 ~${coins}</div>
-      </div>`}
+      <div class="rc-info-item">
+        <div class="rc-info-label">${r.status==='Verified' ? 'Coins Awarded' : 'Coins if Verified'}</div>
+        <div class="rc-info-val" style="color:#FFD166">🪙 ${r.status==='Verified' ? r.aqua_coins_awarded : '~'+estCoins}</div>
+      </div>
     </div>
 
-    ${r.has_image ? `<img class="img-thumb" src="" alt="Loading..." data-id="${r.id}" onclick="viewImage(${r.id})" title="Click to enlarge"/>` : ''}
+    ${r.has_image ? `<img class="img-thumb" id="thumb-${r.id}" src="" data-id="${r.id}"
+        onclick="viewImage(${r.id})" alt="Report photo" title="Click to view full image"/>` : ''}
 
-    ${r.status === 'Pending' ? `
-    <div class="rc-actions" style="margin-top:14px">
-      <button class="btn btn-success btn-sm" onclick="verify(${r.id})">✅ Verify & Award ${coins} Coins</button>
-      <button class="btn btn-sm" style="background:rgba(255,59,92,0.15);color:#FF3B5C;border:1px solid rgba(255,59,92,0.3)" onclick="reject(${r.id})">❌ Reject</button>
-      ${r.has_image ? `<button class="btn btn-ghost btn-sm" onclick="viewImage(${r.id})">🔍 View Photo</button>` : ''}
-    </div>` : `
-    <div style="margin-top:10px;font-size:12px;color:var(--text-muted)">
-      ${r.status === 'Verified' ? `✅ Verified · 🪙 ${r.aqua_coins_awarded} AquaCoins awarded to ${esc(r.reporter_name)}` : '❌ Rejected'}
-    </div>`}
+    <div class="rc-actions" id="actions-${r.id}">
+      ${r.status==='Pending' ? `
+        <button class="btn btn-success btn-sm" id="verify-btn-${r.id}" onclick="verify(${r.id},${estCoins})">
+          ✅ Verify &amp; Award ${estCoins} Coins
+        </button>
+        <button class="btn btn-danger btn-sm" onclick="reject(${r.id})">❌ Reject</button>
+        ${r.has_image ? `<button class="btn btn-ghost btn-sm" onclick="viewImage(${r.id})">🔍 View Photo</button>` : ''}
+      ` : `
+        <div style="font-size:12px;color:var(--text-muted)">
+          ${r.status==='Verified'
+            ? `✅ Verified · 🪙 <strong style="color:#FFD166">${r.aqua_coins_awarded} AquaCoins</strong> sent to ${esc(r.reporter_name)}`
+            : '❌ Rejected — no coins awarded'}
+        </div>
+      `}
+    </div>
   </div>`;
 }
 
-function coinEstimate(type, severity) {
-  const table = {
-    pipe_leak:              { Low:60, Medium:100, High:150, Critical:180 },
-    unauthorized_discharge: { Low:80, Medium:140, High:200, Critical:250 },
-    water_wastage:          { Low:40, Medium:70,  High:100, Critical:120 },
-    other:                  { Low:20, Medium:30,  High:50,  Critical:80  },
-  };
-  return (table[type] || table.other)[severity] || 30;
-}
-
-async function verify(id) {
-  const btn = document.querySelector(`#card-${id} .btn-success`);
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Verifying...'; }
+async function verify(id, coins) {
+  const btn = document.getElementById(`verify-btn-${id}`);
+  if (btn) { btn.disabled=true; btn.textContent='⏳ Verifying...'; }
   try {
-    const r = await fetch(`${API}/community/reports/${id}/verify`, { method: 'POST' });
+    const r = await apiFetch(`${API}/community/reports/${id}/verify`, {method:'POST'});
     const d = await r.json();
     if (r.ok) {
       showToast(`✅ Verified! 🪙 ${d.aqua_coins_awarded} AquaCoins awarded!`, 'success');
-      loadReports(); loadStats();
+      // Update card inline without full reload
+      const card = document.getElementById(`card-${id}`);
+      if (card) {
+        card.classList.remove('pending'); card.classList.add('verified');
+        card.querySelector('.status-badge').textContent = 'Verified';
+        card.querySelector('.status-badge').className = 'status-badge status-Verified';
+        document.getElementById(`actions-${id}`).innerHTML =
+          `<div style="font-size:12px;color:var(--text-muted)">✅ Verified · 🪙 <strong style="color:#FFD166">${d.aqua_coins_awarded} AquaCoins</strong> awarded</div>`;
+      }
+      loadStats();
     } else {
-      showToast(d.detail || 'Error', 'error');
-      if (btn) { btn.disabled = false; btn.textContent = 'Verify'; }
+      showToast(d.detail||'Error verifying', 'error');
+      if (btn) { btn.disabled=false; btn.textContent=`✅ Verify & Award ${coins} Coins`; }
     }
   } catch(e) {
     showToast('Network error — try again', 'error');
-    if (btn) { btn.disabled = false; btn.textContent = 'Verify'; }
+    if (btn) { btn.disabled=false; btn.textContent=`✅ Verify & Award ${coins} Coins`; }
   }
 }
 
 async function reject(id) {
   if (!confirm('Reject this report? The citizen will NOT receive AquaCoins.')) return;
   try {
-    await fetch(`${API}/community/reports/${id}/reject`, { method: 'POST' });
+    await apiFetch(`${API}/community/reports/${id}/reject`, {method:'POST'});
   } catch(e) {}
-  // Update UI immediately
   const card = document.getElementById(`card-${id}`);
   if (card) {
     card.classList.remove('pending'); card.classList.add('rejected');
-    card.querySelector('.rc-actions').innerHTML = '<div style="font-size:12px;color:var(--accent-red)">❌ Rejected</div>';
     card.querySelector('.status-badge').textContent = 'Rejected';
     card.querySelector('.status-badge').className = 'status-badge status-Rejected';
+    document.getElementById(`actions-${id}`).innerHTML =
+      `<div style="font-size:12px;color:var(--accent-red)">❌ Rejected — no coins awarded</div>`;
   }
   loadStats();
   showToast('Report rejected', 'error');
 }
 
 async function verifyAll() {
-  if (!confirm('Verify ALL pending reports and award coins to all citizens?')) return;
-  const cards = document.querySelectorAll('.report-card.pending');
+  const pendingCards = document.querySelectorAll('.report-card.pending');
+  if (!pendingCards.length) { showToast('No pending reports!', 'error'); return; }
+  if (!confirm(`Verify ALL ${pendingCards.length} pending reports and award coins?`)) return;
   let count = 0;
-  for (const card of cards) {
+  for (const card of pendingCards) {
     const id = card.id.replace('card-', '');
     try {
-      const r = await fetch(`${API}/community/reports/${id}/verify`, { method: 'POST' });
-      if (r.ok) count++;
+      const r = await apiFetch(`${API}/community/reports/${id}/verify`, {method:'POST'});
+      if (r.ok) { count++; card.classList.remove('pending'); card.classList.add('verified'); }
     } catch(e) {}
   }
   showToast(`✅ ${count} reports verified & coins awarded!`, 'success');
-  loadReports(); loadStats();
+  loadAll();
 }
 
 async function viewImage(reportId) {
+  // Check thumbnail cache first
+  const thumb = document.getElementById(`thumb-${reportId}`);
+  if (thumb && thumb.src && thumb.src !== window.location.href) {
+    document.getElementById('lightbox-img').src = thumb.src;
+    document.getElementById('lightbox').classList.add('open');
+    return;
+  }
   try {
-    const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), 30000);
-    const r = await fetch(`${API}/community/reports/${reportId}`, { signal: ctrl.signal });
+    const r = await apiFetch(`${API}/community/reports/${reportId}`);
     const d = await r.json();
     if (d.image_data) {
       const src = d.image_data.startsWith('data:') ? d.image_data : `data:image/jpeg;base64,${d.image_data}`;
+      if (thumb) thumb.src = src;
       document.getElementById('lightbox-img').src = src;
       document.getElementById('lightbox').classList.add('open');
-      // Also update thumbnail
-      const thumb = document.querySelector(`img[data-id="${reportId}"]`);
-      if (thumb) thumb.src = src;
     } else {
       showToast('No image attached to this report', 'error');
     }
@@ -375,19 +436,50 @@ function showToast(msg, type) {
   setTimeout(() => t.remove(), 4000);
 }
 
-function esc(str) { return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function timeAgo(iso) {
-  const ms = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(ms/1000);
-  if (s < 60) return 'just now';
-  const m = Math.floor(s/60); if (m < 60) return m+'m ago';
-  const h = Math.floor(m/60); if (h < 24) return h+'h ago';
+  const s = Math.floor((Date.now()-new Date(iso).getTime())/1000);
+  if (s<60) return 'just now';
+  const m=Math.floor(s/60); if(m<60) return m+'m ago';
+  const h=Math.floor(m/60); if(h<24) return h+'h ago';
   return Math.floor(h/24)+'d ago';
 }
 
-// Boot
-loadStats();
-loadReports();
+function loadAll() { loadStats(); loadReports(); }
+
+/* ── Password Gate ── */
+const ADMIN_PW = 'aquaadmin2024';
+
+function checkPassword() {
+  const val = document.getElementById('pw-input').value;
+  const err = document.getElementById('pw-err');
+  if (val === ADMIN_PW) {
+    sessionStorage.setItem('aw_admin', '1');
+    document.getElementById('pw-gate').style.display = 'none';
+    loadAll();
+  } else {
+    err.textContent = '❌ Wrong password. Try again.';
+    document.getElementById('pw-input').value = '';
+    document.getElementById('pw-input').focus();
+    // Shake animation
+    const box = document.getElementById('pw-box');
+    box.style.animation = 'none';
+    box.style.transform = 'translateX(-8px)';
+    setTimeout(()=>{ box.style.transform='translateX(8px)'; }, 80);
+    setTimeout(()=>{ box.style.transform='translateX(-4px)'; }, 160);
+    setTimeout(()=>{ box.style.transform='translateX(0)'; box.style.transition='transform 0.15s'; }, 240);
+  }
+}
+
+// Check if already authenticated this session
+if (sessionStorage.getItem('aw_admin') === '1') {
+  document.getElementById('pw-gate').style.display = 'none';
+  loadAll();
+} else {
+  // Focus the password input
+  setTimeout(() => document.getElementById('pw-input').focus(), 100);
+}
+
 </script>
 </body>
 </html>
