@@ -710,6 +710,16 @@ def manually_verify_report(report_id: int, db: Session = Depends(get_db)):
     return {"status": "verified", "aqua_coins_awarded": coins}
 
 
+@app.post("/community/reports/{report_id}/reject")
+def reject_report(report_id: int, db: Session = Depends(get_db)):
+    r = db.query(CommunityReport).filter(CommunityReport.id == report_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Report not found")
+    r.status = "Rejected"
+    db.commit()
+    return {"status": "rejected"}
+
+
 @app.get("/community/leaderboard")
 def get_leaderboard(limit: int = Query(10, ge=1, le=50), db: Session = Depends(get_db)):
     citizens = (

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AquaWatch — Admin Panel</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    .admin-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+    .report-card {
+      background:var(--bg-card); border:1px solid var(--border-subtle);
+      border-radius:14px; padding:20px; margin-bottom:14px;
+      transition:border-color 0.2s;
+    }
+    .report-card:hover { border-color:var(--border-glow); }
+    .report-card.pending  { border-left:3px solid #FFD166; }
+    .report-card.verified { border-left:3px solid var(--accent-green); opacity:0.7; }
+    .report-card.rejected { border-left:3px solid var(--accent-red); opacity:0.6; }
+
+    .rc-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
+    .rc-type { font-size:15px; font-weight:700; color:var(--text-primary); }
+    .rc-meta { font-size:11px; color:var(--text-muted); font-family:'IBM Plex Mono',monospace; margin-top:3px; }
+    .rc-desc { font-size:13px; color:var(--text-secondary); margin:10px 0; line-height:1.6; }
+    .rc-actions { display:flex; gap:10px; flex-wrap:wrap; }
+
+    .rc-info-row { display:flex; gap:16px; flex-wrap:wrap; margin:10px 0; }
+    .rc-info-item { font-size:12px; }
+    .rc-info-label { color:var(--text-muted); font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; margin-bottom:2px; }
+    .rc-info-val { color:var(--text-primary); font-weight:600; }
+
+    .ai-bar { background:var(--bg-card2); border-radius:6px; height:6px; margin-top:4px; overflow:hidden; }
+    .ai-bar-fill { height:100%; border-radius:6px; transition:width 0.6s ease; }
+
+    .filter-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:20px; }
+    .filter-row select, .filter-row input { 
+      background:var(--bg-card2); border:1px solid var(--border-glow);
+      border-radius:8px; padding:8px 14px; color:var(--text-primary);
+      font-family:'Rajdhani',sans-serif; font-size:13px; outline:none;
+    }
+
+    .toast {
+      position:fixed; bottom:24px; right:24px;
+      padding:14px 20px; border-radius:12px; font-size:14px; font-weight:600;
+      z-index:9999; animation:toastIn 0.3s ease;
+      max-width:320px; box-shadow:0 8px 32px rgba(0,0,0,0.4);
+    }
+    @keyframes toastIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+    .toast-success { background:#00E5A0; color:#000; }
+    .toast-error   { background:#FF3B5C; color:#fff; }
+
+    .img-thumb { 
+      width:100%; max-height:180px; object-fit:cover;
+      border-radius:8px; border:1px solid var(--border-subtle);
+      margin:10px 0; cursor:pointer;
+    }
+    .sev-badge {
+      padding:3px 10px; border-radius:8px; font-size:11px; font-weight:700;
+      font-family:'IBM Plex Mono',monospace;
+    }
+    .sev-Low      { background:rgba(0,194,255,0.15); color:#00C2FF; }
+    .sev-Medium   { background:rgba(255,209,102,0.15); color:#FFD166; }
+    .sev-High     { background:rgba(255,107,53,0.15); color:#FF6B35; }
+    .sev-Critical { background:rgba(255,59,92,0.15); color:#FF3B5C; }
+    .status-badge {
+      padding:3px 10px; border-radius:8px; font-size:11px; font-weight:700; font-family:'IBM Plex Mono',monospace;
+    }
+    .status-Pending  { background:rgba(255,209,102,0.15); color:#FFD166; }
+    .status-Verified { background:rgba(0,229,160,0.15); color:#00E5A0; }
+    .status-Rejected { background:rgba(255,59,92,0.15); color:#FF3B5C; }
+
+    .empty-admin { text-align:center; padding:60px 20px; color:var(--text-muted); }
+    .empty-admin .empty-icon { font-size:48px; margin-bottom:12px; }
+
+    /* Image lightbox */
+    .lightbox { display:none; position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,0.9); align-items:center; justify-content:center; }
+    .lightbox.open { display:flex; }
+    .lightbox img { max-width:90vw; max-height:90vh; border-radius:12px; }
+    .lightbox-close { position:absolute; top:20px; right:24px; font-size:28px; color:#fff; cursor:pointer; background:none; border:none; }
+  </style>
+</head>
+<body>
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">💧</div>
+    <h1>Aqua<span>Watch</span></h1>
+  </div>
+  <div class="sidebar-section">Navigation</div>
+  <a href="index.html" class="nav-item">📊 Dashboard</a>
+  <a href="zones.html" class="nav-item">🗺️ Zone Monitor</a>
+  <a href="anomalies.html" class="nav-item">⚠️ Anomalies</a>
+  <a href="redistribution.html" class="nav-item">🔄 Redistribution</a>
+  <a href="reports.html" class="nav-item">📋 Reports</a>
+  <a href="network.html" class="nav-item">🧠 Net Health</a>
+  <a href="community.html" class="nav-item">🏆 Community</a>
+  <a href="admin.html" class="nav-item active">🛡️ Admin</a>
+  <div class="sidebar-status">
+    <div class="status-dot"><div class="dot"></div> System Online</div>
+  </div>
+</nav>
+
+<div class="main-content">
+  <div class="top-bar">
+    <div>
+      <h2>🛡️ Admin Panel</h2>
+      <div style="font-size:12px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;margin-top:2px">Review community reports · Award AquaCoins · Manage verifications</div>
+    </div>
+    <div class="top-bar-right">
+      <button class="btn btn-ghost btn-sm" onclick="loadReports()">↻ Refresh</button>
+      <button class="btn btn-primary btn-sm" onclick="verifyAll()">✅ Verify All Pending</button>
+    </div>
+  </div>
+
+  <div class="page-body">
+
+    <!-- Stats -->
+    <div class="admin-grid" id="admin-stats">
+      <div class="stat-card" style="--accent-color:#FFD166">
+        <div class="stat-label">Total Reports</div>
+        <div class="stat-value" id="s-total">—</div>
+        <div class="stat-sub">All time</div>
+      </div>
+      <div class="stat-card" style="--accent-color:#FFD166">
+        <div class="stat-label">Pending Review</div>
+        <div class="stat-value" id="s-pending" style="color:#FFD166">—</div>
+        <div class="stat-sub">Needs action</div>
+      </div>
+      <div class="stat-card" style="--accent-color:var(--accent-green)">
+        <div class="stat-label">Verified</div>
+        <div class="stat-value" id="s-verified">—</div>
+        <div class="stat-sub">Coins awarded</div>
+      </div>
+      <div class="stat-card" style="--accent-color:var(--accent-cyan)">
+        <div class="stat-label">Total Coins Given</div>
+        <div class="stat-value" id="s-coins">—</div>
+        <div class="stat-sub">AquaCoins</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-row">
+      <select id="filter-status" onchange="loadReports()">
+        <option value="Pending">🟡 Pending Only</option>
+        <option value="">All Reports</option>
+        <option value="Verified">✅ Verified</option>
+        <option value="Rejected">❌ Rejected</option>
+      </select>
+      <select id="filter-type" onchange="loadReports()">
+        <option value="">All Types</option>
+        <option value="pipe_leak">🔧 Pipe Leak</option>
+        <option value="unauthorized_discharge">🚫 Unauthorized</option>
+        <option value="water_wastage">💦 Wastage</option>
+        <option value="other">🔍 Other</option>
+      </select>
+      <div style="font-size:12px;color:var(--text-muted)" id="report-count"></div>
+    </div>
+
+    <!-- Report List -->
+    <div id="reports-container">
+      <div class="spinner" style="margin:40px auto"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Image Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightbox-img" src="" alt="Report photo"/>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:8000' : '';
+
+const TYPE_LABELS = {
+  pipe_leak: '🔧 Pipe Leak',
+  unauthorized_discharge: '🚫 Unauthorized Discharge',
+  water_wastage: '💦 Water Wastage',
+  other: '🔍 Other'
+};
+
+async function fetchJSON(url) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 30000);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    return r.json();
+  } finally { clearTimeout(t); }
+}
+
+async function loadStats() {
+  try {
+    const d = await fetchJSON(`${API}/community/stats`);
+    document.getElementById('s-total').textContent   = d.total_reports;
+    document.getElementById('s-pending').textContent  = d.pending_reports;
+    document.getElementById('s-verified').textContent = d.verified_reports;
+    document.getElementById('s-coins').textContent    = d.total_aqua_coins_distributed.toLocaleString();
+  } catch(e) {}
+}
+
+async function loadReports() {
+  const status = document.getElementById('filter-status').value;
+  const type   = document.getElementById('filter-type').value;
+  const el     = document.getElementById('reports-container');
+  el.innerHTML = '<div class="spinner" style="margin:40px auto"></div>';
+
+  let url = `${API}/community/reports?limit=100`;
+  if (status) url += `&status=${status}`;
+  if (type)   url += `&report_type=${type}`;
+
+  try {
+    const reports = await fetchJSON(url);
+    document.getElementById('report-count').textContent = `${reports.length} report${reports.length !== 1 ? 's' : ''}`;
+
+    if (!reports.length) {
+      el.innerHTML = `<div class="empty-admin"><div class="empty-icon">✅</div><div>No reports match this filter</div></div>`;
+      return;
+    }
+
+    el.innerHTML = reports.map(r => renderCard(r)).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="empty-admin"><div class="empty-icon">⚠️</div><div>Could not load reports. Server may be waking up — refresh in 30s.</div></div>`;
+  }
+}
+
+function renderCard(r) {
+  const conf     = Math.round((r.ai_confidence || 0) * 100);
+  const barColor = conf >= 72 ? '#00E5A0' : conf >= 50 ? '#FFD166' : '#FF3B5C';
+  const coins    = coinEstimate(r.report_type, r.severity);
+
+  return `
+  <div class="report-card ${r.status.toLowerCase()}" id="card-${r.id}">
+    <div class="rc-top">
+      <div>
+        <div class="rc-type">${TYPE_LABELS[r.report_type] || r.report_type}</div>
+        <div class="rc-meta">by <strong style="color:var(--text-primary)">${esc(r.reporter_name)}</strong> · #${r.id} · ${timeAgo(r.submitted_at)}</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+        <span class="sev-badge sev-${r.severity}">${r.severity}</span>
+        <span class="status-badge status-${r.status}">${r.status}</span>
+      </div>
+    </div>
+
+    ${r.description ? `<div class="rc-desc">"${esc(r.description)}"</div>` : ''}
+
+    <div class="rc-info-row">
+      <div class="rc-info-item">
+        <div class="rc-info-label">Location</div>
+        <div class="rc-info-val">${esc(r.location_text || '—')}</div>
+      </div>
+      <div class="rc-info-item">
+        <div class="rc-info-label">Zone</div>
+        <div class="rc-info-val">${esc(r.zone_name || '—')}</div>
+      </div>
+      <div class="rc-info-item">
+        <div class="rc-info-label">Photo</div>
+        <div class="rc-info-val">${r.has_image ? '✅ Attached' : '❌ None'}</div>
+      </div>
+      <div class="rc-info-item">
+        <div class="rc-info-label">AI Confidence</div>
+        <div class="rc-info-val" style="color:${barColor}">${conf}%</div>
+        <div class="ai-bar"><div class="ai-bar-fill" style="width:${conf}%;background:${barColor}"></div></div>
+      </div>
+      ${r.status === 'Verified' ? `<div class="rc-info-item">
+        <div class="rc-info-label">Coins Awarded</div>
+        <div class="rc-info-val" style="color:#FFD166">🪙 ${r.aqua_coins_awarded}</div>
+      </div>` : `<div class="rc-info-item">
+        <div class="rc-info-label">Coins if Verified</div>
+        <div class="rc-info-val" style="color:#FFD166">🪙 ~${coins}</div>
+      </div>`}
+    </div>
+
+    ${r.has_image ? `<img class="img-thumb" src="" alt="Loading..." data-id="${r.id}" onclick="viewImage(${r.id})" title="Click to enlarge"/>` : ''}
+
+    ${r.status === 'Pending' ? `
+    <div class="rc-actions" style="margin-top:14px">
+      <button class="btn btn-success btn-sm" onclick="verify(${r.id})">✅ Verify & Award ${coins} Coins</button>
+      <button class="btn btn-sm" style="background:rgba(255,59,92,0.15);color:#FF3B5C;border:1px solid rgba(255,59,92,0.3)" onclick="reject(${r.id})">❌ Reject</button>
+      ${r.has_image ? `<button class="btn btn-ghost btn-sm" onclick="viewImage(${r.id})">🔍 View Photo</button>` : ''}
+    </div>` : `
+    <div style="margin-top:10px;font-size:12px;color:var(--text-muted)">
+      ${r.status === 'Verified' ? `✅ Verified · 🪙 ${r.aqua_coins_awarded} AquaCoins awarded to ${esc(r.reporter_name)}` : '❌ Rejected'}
+    </div>`}
+  </div>`;
+}
+
+function coinEstimate(type, severity) {
+  const table = {
+    pipe_leak:              { Low:60, Medium:100, High:150, Critical:180 },
+    unauthorized_discharge: { Low:80, Medium:140, High:200, Critical:250 },
+    water_wastage:          { Low:40, Medium:70,  High:100, Critical:120 },
+    other:                  { Low:20, Medium:30,  High:50,  Critical:80  },
+  };
+  return (table[type] || table.other)[severity] || 30;
+}
+
+async function verify(id) {
+  const btn = document.querySelector(`#card-${id} .btn-success`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Verifying...'; }
+  try {
+    const r = await fetch(`${API}/community/reports/${id}/verify`, { method: 'POST' });
+    const d = await r.json();
+    if (r.ok) {
+      showToast(`✅ Verified! 🪙 ${d.aqua_coins_awarded} AquaCoins awarded!`, 'success');
+      loadReports(); loadStats();
+    } else {
+      showToast(d.detail || 'Error', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Verify'; }
+    }
+  } catch(e) {
+    showToast('Network error — try again', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Verify'; }
+  }
+}
+
+async function reject(id) {
+  if (!confirm('Reject this report? The citizen will NOT receive AquaCoins.')) return;
+  try {
+    await fetch(`${API}/community/reports/${id}/reject`, { method: 'POST' });
+  } catch(e) {}
+  // Update UI immediately
+  const card = document.getElementById(`card-${id}`);
+  if (card) {
+    card.classList.remove('pending'); card.classList.add('rejected');
+    card.querySelector('.rc-actions').innerHTML = '<div style="font-size:12px;color:var(--accent-red)">❌ Rejected</div>';
+    card.querySelector('.status-badge').textContent = 'Rejected';
+    card.querySelector('.status-badge').className = 'status-badge status-Rejected';
+  }
+  loadStats();
+  showToast('Report rejected', 'error');
+}
+
+async function verifyAll() {
+  if (!confirm('Verify ALL pending reports and award coins to all citizens?')) return;
+  const cards = document.querySelectorAll('.report-card.pending');
+  let count = 0;
+  for (const card of cards) {
+    const id = card.id.replace('card-', '');
+    try {
+      const r = await fetch(`${API}/community/reports/${id}/verify`, { method: 'POST' });
+      if (r.ok) count++;
+    } catch(e) {}
+  }
+  showToast(`✅ ${count} reports verified & coins awarded!`, 'success');
+  loadReports(); loadStats();
+}
+
+async function viewImage(reportId) {
+  try {
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 30000);
+    const r = await fetch(`${API}/community/reports/${reportId}`, { signal: ctrl.signal });
+    const d = await r.json();
+    if (d.image_data) {
+      const src = d.image_data.startsWith('data:') ? d.image_data : `data:image/jpeg;base64,${d.image_data}`;
+      document.getElementById('lightbox-img').src = src;
+      document.getElementById('lightbox').classList.add('open');
+      // Also update thumbnail
+      const thumb = document.querySelector(`img[data-id="${reportId}"]`);
+      if (thumb) thumb.src = src;
+    } else {
+      showToast('No image attached to this report', 'error');
+    }
+  } catch(e) { showToast('Could not load image', 'error'); }
+}
+
+function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+
+function showToast(msg, type) {
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+function esc(str) { return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function timeAgo(iso) {
+  const ms = Date.now() - new Date(iso).getTime();
+  const s = Math.floor(ms/1000);
+  if (s < 60) return 'just now';
+  const m = Math.floor(s/60); if (m < 60) return m+'m ago';
+  const h = Math.floor(m/60); if (h < 24) return h+'h ago';
+  return Math.floor(h/24)+'d ago';
+}
+
+// Boot
+loadStats();
+loadReports();
+</script>
+</body>
+</html>
