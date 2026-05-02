@@ -292,51 +292,82 @@ function processFile(file) {
 }
 
 
+/* ── Fetch with timeout helper ── */
+async function fetchWithTimeout(url, options = {}, timeoutMs = 60000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* ── Wake up Render server before submitting ── */
+async function wakeServer(btn) {
+  try {
+    btn.textContent = '⏳ Waking server...';
+    await fetchWithTimeout(`${API}/dashboard/stats`, {}, 55000);
+  } catch (_) { /* ignore — just trying to wake it */ }
+}
+
 /* ── Submit Report ── */
 async function submitReport() {
   const btn = document.getElementById('submit-btn');
   btn.disabled = true;
   btn.textContent = '🤖 AI Analysing...';
 
-  const name = document.getElementById('inp-name').value.trim();
-  const email = document.getElementById('inp-email').value.trim();
+  const name     = document.getElementById('inp-name').value.trim();
+  const email    = document.getElementById('inp-email').value.trim();
   const severity = document.querySelector('input[name="severity"]:checked')?.value || 'Medium';
   const location = document.getElementById('inp-location').value.trim();
-  const desc = document.getElementById('inp-desc').value.trim();
+  const desc     = document.getElementById('inp-desc').value.trim();
 
   const payload = {
-    reporter_name: name,
+    reporter_name:  name,
     reporter_email: email,
-    report_type: selectedType || 'other',
+    report_type:    selectedType || 'other',
     severity,
-    description: desc,
-    location_text: location,
-    image_data: imageBase64,
+    description:    desc,
+    location_text:  location,
+    image_data:     imageBase64,
     image_filename: imageFilename,
   };
 
   try {
-    const res = await fetch(`${API}/community/reports`, {
+    // Step 1: Wake the server if it's sleeping (Render free tier)
+    await wakeServer(btn);
+    btn.textContent = '🚀 Submitting...';
+
+    // Step 2: Submit with 60-second timeout
+    const res = await fetchWithTimeout(`${API}/community/reports`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+      body: JSON.stringify(payload),
+    }, 60000);
+
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       throw new Error(errData.detail || `Server error: ${res.status}`);
     }
     const data = await res.json();
     showSuccess(data);
-    // Refresh stats & feed
     loadStats(); loadLeaderboard(); loadReports(); loadTypeChart();
   } catch(e) {
-    alert('Submission failed: ' + (e.message || 'Make sure the backend server is running.'));
+    if (e.name === 'AbortError') {
+      alert('⏱️ Request timed out. The server may be starting up — please wait 30 seconds and try again.');
+    } else {
+      alert('Submission failed: ' + (e.message || 'Please try again.'));
+    }
   } finally {
     btn.disabled = false;
     btn.textContent = '🚀 Submit & Earn AquaCoins';
   }
 }
 window.submitReport = submitReport;
+
+
 
 function showSuccess(data) {
   document.getElementById('modal-form-body').style.display = 'none';
