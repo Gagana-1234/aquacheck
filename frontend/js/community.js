@@ -324,41 +324,69 @@ async function submitReport() {
   const location = document.getElementById('inp-location').value.trim();
   const desc     = document.getElementById('inp-desc').value.trim();
 
-  const payload = {
+  const buildPayload = (withImage) => ({
     reporter_name:  name,
     reporter_email: email,
     report_type:    selectedType || 'other',
     severity,
     description:    desc,
     location_text:  location,
-    image_data:     imageBase64,
-    image_filename: imageFilename,
-  };
+    image_data:     withImage ? imageBase64 : '',
+    image_filename: withImage ? imageFilename : '',
+  });
 
-  try {
-    // Step 1: Wake the server if it's sleeping (Render free tier)
-    await wakeServer(btn);
-    btn.textContent = '🚀 Submitting...';
-
-    // Step 2: Submit with 60-second timeout
+  async function doSubmit(payload, label) {
+    btn.textContent = label;
     const res = await fetchWithTimeout(`${API}/community/reports`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     }, 60000);
-
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       throw new Error(errData.detail || `Server error: ${res.status}`);
     }
-    const data = await res.json();
+    return res.json();
+  }
+
+  try {
+    // Step 1: Wake sleeping server (Render free tier)
+    await wakeServer(btn);
+
+    let data;
+    try {
+      // Step 2a: Try with image
+      data = await doSubmit(buildPayload(true), '🚀 Submitting...');
+    } catch (e1) {
+      if (imageBase64) {
+        // Step 2b: Auto-retry WITHOUT image if image upload failed
+        btn.textContent = '🔄 Retrying without photo...';
+        try {
+          data = await doSubmit(buildPayload(false), '🔄 Retrying without photo...');
+          // Warn user image was dropped
+          setTimeout(() => {
+            const warn = document.createElement('div');
+            warn.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#FF6B35;color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;z-index:9999;max-width:300px';
+            warn.textContent = '⚠️ Photo could not be uploaded — report submitted without image.';
+            document.body.appendChild(warn);
+            setTimeout(() => warn.remove(), 5000);
+          }, 300);
+        } catch (e2) {
+          throw e2; // Both attempts failed
+        }
+      } else {
+        throw e1;
+      }
+    }
+
     showSuccess(data);
     loadStats(); loadLeaderboard(); loadReports(); loadTypeChart();
+
   } catch(e) {
     if (e.name === 'AbortError') {
-      alert('⏱️ Request timed out. The server may be starting up — please wait 30 seconds and try again.');
+      alert('⏱️ Timed out.\n\nThe server is still starting up on Render.\nPlease wait 60 seconds then try again.');
     } else {
-      alert('Submission failed: ' + (e.message || 'Please try again.'));
+      alert('Submission failed: ' + (e.message || 'Network error. Try again in 30 seconds.'));
     }
   } finally {
     btn.disabled = false;
@@ -366,7 +394,6 @@ async function submitReport() {
   }
 }
 window.submitReport = submitReport;
-
 
 
 function showSuccess(data) {
