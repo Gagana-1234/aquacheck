@@ -39,6 +39,7 @@
     </div>
     <div class="top-bar-right">
       <div class="time-display" id="live-clock"></div>
+      <button class="btn btn-ghost btn-sm" onclick="openRedeemModal()" style="border-color:#FFD166;color:#FFD166">🪙 Redeem Coins</button>
       <button class="btn btn-primary btn-sm" onclick="openModal()">📷 Report Issue</button>
     </div>
   </div>
@@ -320,8 +321,107 @@
   </div>
 </div>
 
+<!-- ── Redeem AquaCoins Modal ── -->
+<div class="comm-modal-backdrop" id="redeem-backdrop" onclick="closeRedeemModal(event)">
+  <div class="comm-modal" id="redeem-modal" style="max-width:620px">
+    <div class="comm-modal-header">
+      <div class="comm-modal-title">🪙 Redeem AquaCoins</div>
+      <button class="comm-modal-close" onclick="closeRedeemModal()">✕</button>
+    </div>
+    <!-- Name lookup -->
+    <div id="redeem-lookup" style="padding:20px 24px">
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Enter your reporter name to check your coin balance</div>
+      <div style="display:flex;gap:10px">
+        <input type="text" class="form-input" id="redeem-name-inp" placeholder="Your name (same as used in reports)" style="flex:1"/>
+        <button class="btn btn-primary" onclick="lookupCitizen()">Check →</button>
+      </div>
+      <div id="redeem-lookup-err" style="color:var(--accent-red);font-size:12px;margin-top:8px;display:none"></div>
+    </div>
+    <!-- Balance bar -->
+    <div id="redeem-balance-bar" style="display:none;padding:0 24px 16px;border-bottom:1px solid var(--border-subtle)">
+      <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,209,102,0.08);border:1px solid rgba(255,209,102,0.3);border-radius:12px;padding:14px 18px">
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase">Your Balance</div>
+          <div style="font-size:28px;font-weight:700;color:#FFD166" id="redeem-coin-display">0 🪙</div>
+          <div style="font-size:12px;color:var(--text-muted)" id="redeem-tier-display"></div>
+        </div>
+        <div style="text-align:right;font-size:11px;color:var(--text-muted);line-height:2">
+          <div>100 coins = ₹10 bill discount</div>
+          <div>50 coins = 5% zone priority boost</div>
+        </div>
+      </div>
+    </div>
+    <!-- Tabs -->
+    <div id="redeem-tabs" style="display:none">
+      <div style="display:flex;border-bottom:1px solid var(--border-subtle);padding:0 16px;gap:4px">
+        <button class="redeem-tab active" id="tab-bill" onclick="switchTab('bill')">🧾 Bill Discount</button>
+        <button class="redeem-tab" id="tab-catalog" onclick="switchTab('catalog')">🎁 Rewards</button>
+        <button class="redeem-tab" id="tab-donate" onclick="switchTab('donate')">💧 Donate Zone</button>
+        <button class="redeem-tab" id="tab-history" onclick="switchTab('history')">📜 History</button>
+      </div>
+      <!-- Bill Discount Tab -->
+      <div class="redeem-tab-panel active" id="panel-bill" style="padding:20px 24px">
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Generate a coupon for your water bill. <strong style="color:#FFD166">100 coins = ₹10 off</strong>.</div>
+        <div class="form-group">
+          <label class="form-label">Coins to Redeem (multiples of 100)</label>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <input type="number" class="form-input" id="bill-coins-inp" value="100" min="100" step="100" style="width:140px" oninput="updateBillPreview()"/>
+            <span style="font-size:20px;color:var(--text-muted)">→</span>
+            <div style="font-size:22px;font-weight:700;color:#FFD166" id="bill-discount-preview">₹10 Off</div>
+          </div>
+        </div>
+        <button class="btn btn-primary w-full" onclick="redeemBillDiscount()" id="bill-redeem-btn">🧾 Generate Coupon Code</button>
+        <div id="bill-result" style="display:none;margin-top:16px;background:rgba(255,209,102,0.07);border:1px solid rgba(255,209,102,0.3);border-radius:12px;padding:20px;text-align:center">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;letter-spacing:1px;text-transform:uppercase">Your Coupon Code</div>
+          <div style="font-size:26px;font-weight:800;color:#FFD166;letter-spacing:4px;font-family:'IBM Plex Mono',monospace" id="bill-coupon-code"></div>
+          <div style="font-size:13px;color:var(--accent-green);margin-top:8px" id="bill-coupon-msg"></div>
+          <div style="margin-top:10px;display:flex;gap:8px;justify-content:center">
+            <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('bill-coupon-code').textContent).then(()=>alert('Copied!'))">📋 Copy Code</button>
+          </div>
+        </div>
+      </div>
+      <!-- Rewards Catalog Tab -->
+      <div class="redeem-tab-panel" id="panel-catalog" style="padding:20px 24px;max-height:380px;overflow-y:auto">
+        <div id="catalog-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="spinner" style="grid-column:span 2;margin:20px auto"></div>
+        </div>
+        <div id="catalog-result" style="display:none;margin-top:14px;background:rgba(0,255,136,0.07);border:1px solid var(--accent-green);border-radius:12px;padding:16px;text-align:center">
+          <div style="font-size:24px">🎁</div>
+          <div style="font-size:14px;font-weight:600;color:var(--accent-green);margin-top:6px" id="catalog-result-msg"></div>
+        </div>
+      </div>
+      <!-- Donate to Zone Tab -->
+      <div class="redeem-tab-panel" id="panel-donate" style="padding:20px 24px">
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Donate coins to give a water-stressed zone a <strong style="color:#00C2FF">priority boost</strong>. <strong style="color:#FFD166">50 coins = +5% priority</strong>.</div>
+        <div class="form-group">
+          <label class="form-label">Select Zone to Boost</label>
+          <select class="form-input" id="donate-zone-sel"><option value="">Loading zones...</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Coins to Donate (multiples of 50)</label>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <input type="number" class="form-input" id="donate-coins-inp" value="50" min="50" step="50" style="width:140px" oninput="updateDonatePreview()"/>
+            <span style="font-size:20px;color:var(--text-muted)">→</span>
+            <div style="font-size:18px;font-weight:700;color:#00C2FF" id="donate-boost-preview">+5% Priority</div>
+          </div>
+        </div>
+        <button class="btn btn-primary w-full" style="background:linear-gradient(135deg,#0ea5e9,#0369a1)" onclick="redeemDonate()" id="donate-redeem-btn">💧 Donate & Boost Zone</button>
+        <div id="donate-result" style="display:none;margin-top:14px;background:rgba(0,194,255,0.07);border:1px solid var(--border-glow);border-radius:12px;padding:16px;text-align:center">
+          <div style="font-size:28px">💧</div>
+          <div style="font-size:14px;font-weight:600;color:#00C2FF;margin-top:6px" id="donate-result-msg"></div>
+        </div>
+      </div>
+      <!-- History Tab -->
+      <div class="redeem-tab-panel" id="panel-history" style="padding:20px 24px;max-height:360px;overflow-y:auto">
+        <div id="history-list"><div class="spinner" style="margin:20px auto"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="js/api.js"></script>
 <script src="js/community.js"></script>
+
 <script>
 // Particle canvas
 (function(){

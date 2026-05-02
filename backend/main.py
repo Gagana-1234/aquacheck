@@ -13,7 +13,7 @@ import random
 import re
 
 from database import engine, get_db, SessionLocal
-from models import Base, Zone, Reading, Alert, RedistributionPlan, CommunityReport, CitizenReward
+from models import Base, Zone, Reading, Alert, RedistributionPlan, CommunityReport, CitizenReward, Redemption
 from anomaly import get_anomaly_explanation
 from redistribution import suggest_redistribution, save_redistribution_plan
 from predict import forecast_zone, compute_network_health
@@ -860,3 +860,167 @@ def get_community_redistribution_insights(db: Session = Depends(get_db)):
         for zid, cnt in hotspot_ids.items()
     ]
     return base
+
+
+# ─── AquaCoins Redemption ────────────────────────────────────────────────────
+
+REWARDS_CATALOG = [
+    {"id": "plant_kit",       "name": "Water-Saving Plant Kit",     "description": "Drought-resistant indoor plants + care guide",       "coins": 200,  "icon": "🌿", "category": "Eco"},
+    {"id": "water_bottle",    "name": "AquaWatch Steel Bottle",     "description": "1L insulated bottle with AquaWatch branding",         "coins": 350,  "icon": "🍶", "category": "Merch"},
+    {"id": "rain_gauge",      "name": "Home Rain Gauge Kit",        "description": "Measure and track your household rainfall",            "coins": 150,  "icon": "🌧️", "category": "Eco"},
+    {"id": "filter_cartridge","name": "Water Filter Cartridge",     "description": "3-month supply of activated carbon filter packs",     "coins": 500,  "icon": "💧", "category": "Utility"},
+    {"id": "tshirt",          "name": "AquaWatch Eco T-Shirt",      "description": "100% organic cotton tee — Save Water, Save Life",      "coins": 600,  "icon": "👕", "category": "Merch"},
+    {"id": "drip_kit",        "name": "Drip Irrigation Kit",        "description": "DIY drip kit for balcony/terrace garden (saves 60% water)", "coins": 450,  "icon": "🪴", "category": "Eco"},
+    {"id": "smart_tap",       "name": "Smart Tap Aerator",          "description": "Reduces tap water flow by 40% without pressure loss",   "coins": 300,  "icon": "🚿", "category": "Utility"},
+    {"id": "badge_legend",    "name": "Legend Badge (Profile)",     "description": "Exclusive animated Legend badge on your profile",       "coins": 1000, "icon": "🏅", "category": "Status"},
+]
+
+
+def _generate_coupon(name: str, discount: float) -> str:
+    import hashlib, time
+    raw = f"{name}-{discount}-{time.time()}"
+    h = hashlib.md5(raw.encode()).hexdigest()[:8].upper()
+    return f"AQUA-{h}"
+
+
+def _deduct_coins(db: Session, citizen_name: str, coins: int) -> CitizenReward:
+    citizen = db.query(CitizenReward).filter(CitizenReward.citizen_name == citizen_name).first()
+    if not citizen:
+        raise HTTPException(status_code=404, detail="Citizen not found. Submit a report first.")
+    if citizen.total_aqua_coins < coins:
+        raise HTTPException(status_code=400, detail=f"Insufficient coins. You have {citizen.total_aqua_coins}, need {coins}.")
+    citizen.total_aqua_coins -= coins
+    citizen.last_activity = datetime.utcnow()
+    return citizen
+
+
+@app.get("/community/redeem/catalog")
+def get_reward_catalog():
+    """Return the full rewards catalog."""
+    return REWARDS_CATALOG
+
+
+@app.post("/community/redeem/bill-discount")
+def redeem_bill_discount(
+    citizen_name: str = Body(...),
+    coins: int = Body(...),
+    db: Session = Depends(get_db),
+):
+    """Redeem AquaCoins for a water bill discount coupon. 100 coins = ₹10."""
+    if coins < 100 or coins % 100 != 0:
+        raise HTTPException(status_code=400, detail="Minimum 100 coins, in multiples of 100.")
+    discount = (coins // 100) * 10
+    citizen = _deduct_coins(db, citizen_name, coins)
+    coupon = _generate_coupon(citizen_name, discount)
+    redemption = Redemption(
+        citizen_name=citizen_name,
+        redemption_type="bill_discount",
+        coins_spent=coins,
+        coupon_code=coupon,
+        discount_amount=discount,
+    )
+    db.add(redemption)
+    db.commit()
+    db.refresh(redemption)
+    return {
+        "success": True,
+        "redemption_type": "bill_discount",
+        "coupon_code": coupon,
+        "discount_amount": discount,
+        "coins_spent": coins,
+        "remaining_coins": citizen.total_aqua_coins,
+        "message": f"🎉 Coupon {coupon} gives you ₹{discount} off your next water bill!",
+    }
+
+
+@app.post("/community/redeem/reward")
+def redeem_catalog_reward(
+    citizen_name: str = Body(...),
+    reward_id: str = Body(...),
+    db: Session = Depends(get_db),
+):
+    """Redeem AquaCoins for a reward from the catalog."""
+    reward = next((r for r in REWARDS_CATALOG if r["id"] == reward_id), None)
+    if not reward:
+        raise HTTPException(status_code=404, detail="Reward not found.")
+    citizen = _deduct_coins(db, citizen_name, reward["coins"])
+    redemption = Redemption(
+        citizen_name=citizen_name,
+        redemption_type="reward",
+        coins_spent=reward["coins"],
+        reward_name=reward["name"],
+        reward_description=reward["description"],
+    )
+    db.add(redemption)
+    db.commit()
+    db.refresh(redemption)
+    return {
+        "success": True,
+        "redemption_type": "reward",
+        "reward": reward,
+        "coins_spent": reward["coins"],
+        "remaining_coins": citizen.total_aqua_coins,
+        "message": f"🎁 {reward['name']} redeemed! It will be delivered within 7 days.",
+    }
+
+
+@app.post("/community/redeem/donate")
+def redeem_donate_to_zone(
+    citizen_name: str = Body(...),
+    zone_id: int = Body(...),
+    coins: int = Body(...),
+    db: Session = Depends(get_db),
+):
+    """Donate AquaCoins to boost water priority for a needy zone. 50 coins = 5% boost."""
+    if coins < 50 or coins % 50 != 0:
+        raise HTTPException(status_code=400, detail="Minimum 50 coins, in multiples of 50.")
+    zone = db.query(Zone).filter(Zone.id == zone_id).first()
+    if not zone:
+        raise HTTPException(status_code=404, detail="Zone not found.")
+    boost_pct = (coins // 50) * 5
+    citizen = _deduct_coins(db, citizen_name, coins)
+    redemption = Redemption(
+        citizen_name=citizen_name,
+        redemption_type="donation",
+        coins_spent=coins,
+        donated_to_zone_id=zone_id,
+        donated_to_zone_name=zone.name,
+        priority_boost_pct=boost_pct,
+    )
+    db.add(redemption)
+    db.commit()
+    db.refresh(redemption)
+    return {
+        "success": True,
+        "redemption_type": "donation",
+        "zone_name": zone.name,
+        "priority_boost_pct": boost_pct,
+        "coins_spent": coins,
+        "remaining_coins": citizen.total_aqua_coins,
+        "message": f"💧 {zone.name} gets a {boost_pct}% redistribution priority boost! Thank you!",
+    }
+
+
+@app.get("/community/redeem/history/{citizen_name}")
+def get_redemption_history(citizen_name: str, db: Session = Depends(get_db)):
+    """Get all redemptions for a citizen."""
+    redemptions = (
+        db.query(Redemption)
+        .filter(Redemption.citizen_name == citizen_name)
+        .order_by(Redemption.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": r.id,
+            "type": r.redemption_type,
+            "coins_spent": r.coins_spent,
+            "coupon_code": r.coupon_code,
+            "discount_amount": r.discount_amount,
+            "reward_name": r.reward_name,
+            "donated_to_zone": r.donated_to_zone_name,
+            "priority_boost_pct": r.priority_boost_pct,
+            "created_at": r.created_at.isoformat(),
+        }
+        for r in redemptions
+    ]

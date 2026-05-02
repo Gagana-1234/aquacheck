@@ -408,3 +408,60 @@
   .issue-type-grid { grid-template-columns: 1fr 1fr; }
   .comm-modal { margin: 16px; max-height: 95vh; }
 }
+
+/* ── Redeem Modal Tabs ── */
+.redeem-tab {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--text-muted); cursor: pointer;
+  padding: 12px 14px; font-size: 13px; font-weight: 600;
+  font-family: 'Rajdhani', sans-serif;
+  transition: var(--transition); white-space: nowrap;
+}
+.redeem-tab:hover { color: var(--text-primary); }
+.redeem-tab.active {
+  color: #FFD166; border-bottom-color: #FFD166;
+}
+
+.redeem-tab-panel { display: none; }
+.redeem-tab-panel.active { display: block; animation: stepIn 0.25s ease; }
+
+/* ── Reward Catalog Cards ── */
+.catalog-card {
+  background: var(--bg-card2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px; padding: 16px;
+  cursor: pointer; transition: var(--transition);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.catalog-card:hover {
+  border-color: var(--border-glow);
+  background: rgba(0,194,255,0.05);
+  transform: translateY(-2px);
+}
+.catalog-card.insufficient { opacity: 0.45; cursor: not-allowed; }
+.catalog-icon  { font-size: 30px; }
+.catalog-name  { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.catalog-desc  { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
+.catalog-cost  {
+  font-size: 13px; font-weight: 700; color: #FFD166;
+  font-family: 'IBM Plex Mono', monospace;
+  margin-top: 4px;
+}
+.catalog-cat {
+  display: inline-block; font-size: 10px;
+  padding: 2px 8px; border-radius: 8px;
+  background: rgba(0,194,255,0.1); color: var(--accent-cyan);
+  border: 1px solid rgba(0,194,255,0.2);
+}
+
+/* ── History Items ── */
+.history-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--border-subtle);
+}
+.history-item:last-child { border-bottom: none; }
+.history-icon { font-size: 24px; flex-shrink: 0; }
+.history-info { flex: 1; }
+.history-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.history-sub   { font-size: 11px; color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; margin-top: 2px; }
+.history-coins { font-size: 13px; font-weight: 700; color: #FF6B6B; font-family: 'IBM Plex Mono', monospace; flex-shrink: 0; }

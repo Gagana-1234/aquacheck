@@ -434,3 +434,206 @@ function timeAgo(isoStr) {
 
 window.loadLeaderboard = loadLeaderboard;
 window.loadReports = loadReports;
+
+/* ══════════════════════════════════════════════════════
+   REDEEM AQUACOINS MODAL
+══════════════════════════════════════════════════════ */
+
+let redeemCitizenName = '';
+let redeemCitizenCoins = 0;
+let catalogData = [];
+let zonesData = [];
+
+/* ── Open / Close ── */
+window.openRedeemModal = function() {
+  document.getElementById('redeem-backdrop').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  // Load zones for donate tab
+  loadZonesForDonate();
+};
+window.closeRedeemModal = function(e) {
+  if (e && e.target) {
+    if (e.target.closest && e.target.closest('.comm-modal')) return;
+    if (!e.target.closest && e.target.id !== 'redeem-backdrop') return;
+  }
+  document.getElementById('redeem-backdrop').classList.remove('open');
+  document.body.style.overflow = '';
+};
+document.getElementById('redeem-backdrop').addEventListener('click', function(e) {
+  if (e.target === this) { this.classList.remove('open'); document.body.style.overflow = ''; }
+});
+
+/* ── Citizen Lookup ── */
+window.lookupCitizen = async function() {
+  const name = document.getElementById('redeem-name-inp').value.trim();
+  const errEl = document.getElementById('redeem-lookup-err');
+  errEl.style.display = 'none';
+  if (!name) { errEl.textContent = 'Please enter your name.'; errEl.style.display = 'block'; return; }
+  try {
+    const res = await fetchWithTimeout(`${API}/community/citizen/${encodeURIComponent(name)}`, {}, 55000);
+    if (!res.ok) { errEl.textContent = 'Citizen not found. Submit a report first to earn coins!'; errEl.style.display = 'block'; return; }
+    const data = await res.json();
+    redeemCitizenName = data.citizen_name;
+    redeemCitizenCoins = data.total_aqua_coins;
+    document.getElementById('redeem-coin-display').textContent = `${redeemCitizenCoins.toLocaleString()} 🪙`;
+    document.getElementById('redeem-tier-display').textContent = `Tier: ${data.tier} · ${data.verified_reports} verified reports`;
+    document.getElementById('redeem-balance-bar').style.display = 'block';
+    document.getElementById('redeem-tabs').style.display = 'block';
+    loadCatalog();
+    loadRedemptionHistory();
+  } catch(e) {
+    errEl.textContent = 'Server error. Please try again.';
+    errEl.style.display = 'block';
+  }
+};
+
+/* ── Tab Switching ── */
+window.switchTab = function(tab) {
+  document.querySelectorAll('.redeem-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.redeem-tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+};
+
+/* ── Bill Discount ── */
+window.updateBillPreview = function() {
+  const coins = parseInt(document.getElementById('bill-coins-inp').value) || 0;
+  const disc = Math.floor(coins / 100) * 10;
+  document.getElementById('bill-discount-preview').textContent = `₹${disc} Off`;
+};
+
+window.redeemBillDiscount = async function() {
+  const coins = parseInt(document.getElementById('bill-coins-inp').value);
+  if (!redeemCitizenName) return;
+  if (coins > redeemCitizenCoins) { alert(`Insufficient coins! You have ${redeemCitizenCoins}.`); return; }
+  const btn = document.getElementById('bill-redeem-btn');
+  btn.disabled = true; btn.textContent = '⏳ Generating...';
+  try {
+    const res = await fetchWithTimeout(`${API}/community/redeem/bill-discount`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ citizen_name: redeemCitizenName, coins })
+    }, 55000);
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Error'); return; }
+    redeemCitizenCoins = data.remaining_coins;
+    document.getElementById('redeem-coin-display').textContent = `${redeemCitizenCoins.toLocaleString()} 🪙`;
+    document.getElementById('bill-coupon-code').textContent = data.coupon_code;
+    document.getElementById('bill-coupon-msg').textContent = data.message;
+    document.getElementById('bill-result').style.display = 'block';
+    loadCatalog();
+  } catch(e) { alert('Error: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '🧾 Generate Coupon Code'; }
+};
+
+/* ── Rewards Catalog ── */
+async function loadCatalog() {
+  const grid = document.getElementById('catalog-grid');
+  if (!catalogData.length) {
+    try {
+      const res = await fetchWithTimeout(`${API}/community/redeem/catalog`, {}, 55000);
+      catalogData = await res.json();
+    } catch(e) { grid.innerHTML = '<div style="color:var(--text-muted)">Could not load catalog.</div>'; return; }
+  }
+  grid.innerHTML = catalogData.map(r => {
+    const canAfford = redeemCitizenCoins >= r.coins;
+    return `
+      <div class="catalog-card ${canAfford ? '' : 'insufficient'}" onclick="${canAfford ? `redeemReward('${r.id}','${escHtml(r.name)}',${r.coins})` : ''}">
+        <div class="catalog-icon">${r.icon}</div>
+        <div class="catalog-name">${escHtml(r.name)}</div>
+        <div class="catalog-desc">${escHtml(r.description)}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+          <div class="catalog-cost">${r.coins.toLocaleString()} 🪙</div>
+          <span class="catalog-cat">${r.category}</span>
+        </div>
+        ${!canAfford ? '<div style="font-size:10px;color:var(--accent-red);margin-top:4px">Need '+(r.coins-redeemCitizenCoins)+' more coins</div>' : ''}
+      </div>`;
+  }).join('');
+}
+
+window.redeemReward = async function(rewardId, rewardName, cost) {
+  if (!confirm(`Redeem "${rewardName}" for ${cost} AquaCoins?`)) return;
+  try {
+    const res = await fetchWithTimeout(`${API}/community/redeem/reward`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ citizen_name: redeemCitizenName, reward_id: rewardId })
+    }, 55000);
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Error'); return; }
+    redeemCitizenCoins = data.remaining_coins;
+    document.getElementById('redeem-coin-display').textContent = `${redeemCitizenCoins.toLocaleString()} 🪙`;
+    document.getElementById('catalog-result-msg').textContent = data.message;
+    document.getElementById('catalog-result').style.display = 'block';
+    loadCatalog();
+    loadRedemptionHistory();
+  } catch(e) { alert('Error: ' + e.message); }
+};
+
+/* ── Donate to Zone ── */
+async function loadZonesForDonate() {
+  if (zonesData.length) return;
+  try {
+    const res = await fetchWithTimeout(`${API}/zones`, {}, 55000);
+    zonesData = await res.json();
+    const sel = document.getElementById('donate-zone-sel');
+    sel.innerHTML = '<option value="">Select a zone...</option>' +
+      zonesData.map(z => `<option value="${z.id}">${z.name} (${z.status}) — ${z.region}</option>`).join('');
+  } catch(e) { /* silently fail */ }
+}
+
+window.updateDonatePreview = function() {
+  const coins = parseInt(document.getElementById('donate-coins-inp').value) || 0;
+  const boost = Math.floor(coins / 50) * 5;
+  document.getElementById('donate-boost-preview').textContent = `+${boost}% Priority`;
+};
+
+window.redeemDonate = async function() {
+  const zoneId = parseInt(document.getElementById('donate-zone-sel').value);
+  const coins  = parseInt(document.getElementById('donate-coins-inp').value);
+  if (!zoneId) { alert('Please select a zone.'); return; }
+  if (coins > redeemCitizenCoins) { alert(`Insufficient coins! You have ${redeemCitizenCoins}.`); return; }
+  const btn = document.getElementById('donate-redeem-btn');
+  btn.disabled = true; btn.textContent = '⏳ Donating...';
+  try {
+    const res = await fetchWithTimeout(`${API}/community/redeem/donate`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ citizen_name: redeemCitizenName, zone_id: zoneId, coins })
+    }, 55000);
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Error'); return; }
+    redeemCitizenCoins = data.remaining_coins;
+    document.getElementById('redeem-coin-display').textContent = `${redeemCitizenCoins.toLocaleString()} 🪙`;
+    document.getElementById('donate-result-msg').textContent = data.message;
+    document.getElementById('donate-result').style.display = 'block';
+    loadCatalog();
+    loadRedemptionHistory();
+  } catch(e) { alert('Error: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '💧 Donate & Boost Zone'; }
+};
+
+/* ── Redemption History ── */
+async function loadRedemptionHistory() {
+  const el = document.getElementById('history-list');
+  el.innerHTML = '<div class="spinner" style="margin:20px auto"></div>';
+  try {
+    const res = await fetchWithTimeout(`${API}/community/redeem/history/${encodeURIComponent(redeemCitizenName)}`, {}, 55000);
+    const data = await res.json();
+    if (!data.length) { el.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:10px 0">No redemptions yet.</div>'; return; }
+    const typeMap = { bill_discount: ['🧾','Bill Discount'], reward: ['🎁','Reward'], donation: ['💧','Zone Donation'] };
+    el.innerHTML = data.map(r => {
+      const [icon, label] = typeMap[r.type] || ['🪙','Redemption'];
+      let detail = '';
+      if (r.type === 'bill_discount') detail = `Coupon: ${r.coupon_code} · ₹${r.discount_amount} off`;
+      if (r.type === 'reward')        detail = r.reward_name;
+      if (r.type === 'donation')      detail = `Donated to ${r.donated_to_zone} · +${r.priority_boost_pct}% boost`;
+      return `
+        <div class="history-item">
+          <div class="history-icon">${icon}</div>
+          <div class="history-info">
+            <div class="history-title">${label}</div>
+            <div class="history-sub">${escHtml(detail)} · ${timeAgo(r.created_at)}</div>
+          </div>
+          <div class="history-coins">-${r.coins_spent} 🪙</div>
+        </div>`;
+    }).join('');
+  } catch(e) { el.innerHTML = '<div style="color:var(--text-muted);font-size:12px">Could not load history.</div>'; }
+}

@@ -96,3 +96,26 @@ class CitizenReward(Base):
     tier = Column(String, default="Bronze")        # Bronze, Silver, Gold, Platinum, Legend
     joined_at = Column(DateTime, default=datetime.utcnow)
     last_activity = Column(DateTime, default=datetime.utcnow)
+
+
+class Redemption(Base):
+    __tablename__ = "redemptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    citizen_name = Column(String, nullable=False, index=True)
+    redemption_type = Column(String, nullable=False)  # bill_discount, reward, donation
+    coins_spent = Column(Integer, nullable=False)
+    # Bill discount fields
+    coupon_code = Column(String, nullable=True)
+    discount_amount = Column(Float, nullable=True)    # ₹ value
+    # Reward catalog fields
+    reward_name = Column(String, nullable=True)
+    reward_description = Column(String, nullable=True)
+    # Donation fields
+    donated_to_zone_id = Column(Integer, ForeignKey("zones.id"), nullable=True)
+    donated_to_zone_name = Column(String, nullable=True)
+    priority_boost_pct = Column(Float, nullable=True)
+    # Meta
+    status = Column(String, default="Completed")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
