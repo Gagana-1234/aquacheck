@@ -16,8 +16,10 @@ from datetime import datetime, timedelta
 from database import engine, SessionLocal
 from models import Base, Zone, Reading, Alert, RedistributionPlan
 
-# Fix Windows console UTF-8 encoding
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+# Fix Windows console UTF-8 encoding (safe no-op on Linux/Render)
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+
 
 random.seed(42)
 

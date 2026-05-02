@@ -20,6 +20,25 @@ from predict import forecast_zone, compute_network_health
 
 Base.metadata.create_all(bind=engine)
 
+# ─── Auto-seed on first startup ─────────────────────────────────────────────
+# If the database is empty (no zones), run the seed script automatically.
+# This ensures the app works immediately after a fresh deploy on Render/Railway.
+def _auto_seed():
+    db = SessionLocal()
+    try:
+        if db.query(Zone).count() == 0:
+            print("[startup] Empty database detected — running seed...")
+            import seed
+            seed.main()
+            print("[startup] Seeding complete!")
+    except Exception as e:
+        print(f"[startup] Seed error (non-fatal): {e}")
+    finally:
+        db.close()
+
+_auto_seed()
+
+
 app = FastAPI(
     title="Water Systems Monitoring API",
     description="Real-time water distribution monitoring, anomaly detection and redistribution planning",
