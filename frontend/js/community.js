@@ -1,6 +1,10 @@
 /* community.js — AquaWatch Community Reporter & Rewards */
 
-const API = window.API_BASE || 'http://localhost:8000';
+// Fix: API_BASE is '' on production (relative URL). '' is falsy so must check explicitly.
+const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:8000'
+  : '';
+
 
 /* ── State ── */
 let currentStep = 1;
