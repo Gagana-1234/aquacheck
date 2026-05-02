@@ -21,6 +21,7 @@
   <a href="redistribution.html" class="nav-item active">🔄 Redistribution</a>
   <a href="reports.html" class="nav-item">📋 Reports</a>
   <a href="network.html" class="nav-item">🧠 Net Health</a>
+  <a href="community.html" class="nav-item">🏆 Community</a>
   <div class="sidebar-status">
     <div class="status-dot"><div class="dot"></div> System Online</div>
     <div class="status-dot mt-4"><span style="font-size:10px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace" id="sidebar-time"></span></div>
@@ -54,6 +55,43 @@
         <div class="stat-label">To Redistribute</div>
         <div class="stat-value" id="total-litres">—</div>
         <div class="stat-sub">Litres/hr total</div>
+      </div>
+    </div>
+
+    <!-- Community Redistribution Insights -->
+    <div class="card mb-20" id="community-insights-card">
+      <div class="card-header">
+        <span class="card-title">🏆 Community-Driven Redistribution Insights</span>
+        <a href="community.html" class="btn btn-primary btn-sm">📷 Report Issue</a>
+      </div>
+      <div class="card-body" id="community-insights-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div>
+            <div style="font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px">HOW IT WORKS</div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:flex-start;gap:12px">
+                <span style="font-size:22px">📷</span>
+                <div><div style="font-size:13px;font-weight:600;color:var(--text-primary)">Citizens upload photos</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px">Pipe leaks, wastage, unauthorized discharge are reported via photos</div></div>
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:12px">
+                <span style="font-size:22px">🤖</span>
+                <div><div style="font-size:13px;font-weight:600;color:var(--text-primary)">AI verifies in seconds</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px">Vision AI analyses image confidence and auto-verifies reports</div></div>
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:12px">
+                <span style="font-size:22px">🔄</span>
+                <div><div style="font-size:13px;font-weight:600;color:var(--text-primary)">Redistribution gets smarter</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px">Zones with verified citizen reports get +15% water priority boost</div></div>
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:12px">
+                <span style="font-size:22px">🪙</span>
+                <div><div style="font-size:13px;font-weight:600;color:var(--text-primary)">Citizens earn AquaCoins</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px">Every verified report earns coins redeemable for water bill credits</div></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px">🚨 COMMUNITY HOTSPOT ZONES</div>
+            <div id="hotspot-zones-list"><div class="spinner" style="width:20px;height:20px;margin:20px auto"></div></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -96,5 +134,34 @@
 <script src="js/api.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/redistribution.js"></script>
+<script>
+// Load community hotspot zones
+async function loadHotspots() {
+  const el = document.getElementById('hotspot-zones-list');
+  if (!el) return;
+  try {
+    const res = await fetch((window.API_BASE || 'http://localhost:8000') + '/community/stats');
+    const d = await res.json();
+    const hotspots = d.community_hotspots || [];
+    if (!hotspots.length) {
+      el.innerHTML = `<div style="font-size:13px;color:var(--text-muted);padding:12px 0">No community reports yet. <a href="community.html" style="color:var(--accent-cyan)">Be the first to report!</a></div>`;
+      return;
+    }
+    el.innerHTML = hotspots.map((h, i) => `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-subtle)">
+        <span style="font-size:20px">${i === 0 ? '🔴' : i === 1 ? '🟠' : '🟡'}</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600;color:var(--text-primary)">${h.zone_name}</div>
+          <div style="font-size:11px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace">${h.verified_reports} verified reports</div>
+        </div>
+        <span class="badge badge-critical" style="font-size:9px">PRIORITY BOOST</span>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = `<div style="font-size:12px;color:var(--text-muted)">Could not load hotspots</div>`;
+  }
+}
+loadHotspots();
+</script>
 </body>
 </html>

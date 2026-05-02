@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AquaWatch — Community Reporter & Rewards</title>
+  <meta name="description" content="Report water leaks, unauthorized discharge, and wastage. Earn AquaCoins and climb the citizen leaderboard."/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="css/community.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<canvas id="particle-canvas"></canvas>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">💧</div>
+    <h1>Aqua<span>Watch</span></h1>
+  </div>
+  <div class="sidebar-section">Navigation</div>
+  <a href="index.html" class="nav-item" id="nav-dashboard"><span class="nav-icon">📊</span> Dashboard</a>
+  <a href="zones.html" class="nav-item" id="nav-zones"><span class="nav-icon">🗺️</span> Zone Monitor</a>
+  <a href="anomalies.html" class="nav-item" id="nav-anomalies"><span class="nav-icon">⚠️</span> Anomalies</a>
+  <a href="redistribution.html" class="nav-item" id="nav-redist"><span class="nav-icon">🔄</span> Redistribution</a>
+  <a href="reports.html" class="nav-item" id="nav-reports"><span class="nav-icon">📋</span> Reports</a>
+  <a href="network.html" class="nav-item" id="nav-network"><span class="nav-icon">🧠</span> Net Health</a>
+  <a href="community.html" class="nav-item active" id="nav-community"><span class="nav-icon">🏆</span> Community</a>
+  <div class="sidebar-status">
+    <div class="status-dot"><div class="dot"></div> System Online</div>
+    <div class="status-dot mt-4"><span style="font-size:10px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace" id="sidebar-time"></span></div>
+  </div>
+</nav>
+
+<div class="main-content">
+  <div class="top-bar">
+    <div>
+      <h2>🏆 Community Reporter</h2>
+      <div style="font-size:12px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;margin-top:2px">Report water issues · Earn AquaCoins · Save the planet</div>
+    </div>
+    <div class="top-bar-right">
+      <div class="time-display" id="live-clock"></div>
+      <button class="btn btn-primary btn-sm" onclick="openModal()">📷 Report Issue</button>
+    </div>
+  </div>
+
+  <div class="page-body">
+
+    <!-- Stats Row -->
+    <div class="stats-grid" style="grid-template-columns:repeat(5,1fr)" id="comm-stats-grid">
+      <div class="stat-card" style="--accent-color:#FFD166">
+        <div class="stat-label">Total Reports</div>
+        <div class="stat-value" id="stat-total">—</div>
+        <div class="stat-sub">Community submitted</div>
+        <div class="stat-icon">📋</div>
+      </div>
+      <div class="stat-card" style="--accent-color:var(--accent-green)">
+        <div class="stat-label">Verified</div>
+        <div class="stat-value" id="stat-verified">—</div>
+        <div class="stat-sub">AI + manual approved</div>
+        <div class="stat-icon">✅</div>
+      </div>
+      <div class="stat-card" style="--accent-color:var(--accent-orange)">
+        <div class="stat-label">Pending</div>
+        <div class="stat-value" id="stat-pending">—</div>
+        <div class="stat-sub">Awaiting review</div>
+        <div class="stat-icon">⏳</div>
+      </div>
+      <div class="stat-card" style="--accent-color:var(--accent-cyan)">
+        <div class="stat-label">AquaCoins Issued</div>
+        <div class="stat-value" id="stat-coins">—</div>
+        <div class="stat-sub">Total distributed</div>
+        <div class="stat-icon">🪙</div>
+      </div>
+      <div class="stat-card" style="--accent-color:#a78bfa">
+        <div class="stat-label">Active Citizens</div>
+        <div class="stat-value" id="stat-citizens">—</div>
+        <div class="stat-sub">Reporting heroes</div>
+        <div class="stat-icon">👥</div>
+      </div>
+    </div>
+
+    <!-- Main Grid: Upload CTA + Leaderboard -->
+    <div class="comm-main-grid">
+
+      <!-- Hero Upload Card -->
+      <div class="card comm-hero-card" id="upload-hero" onclick="openModal()">
+        <div class="comm-hero-inner">
+          <div class="comm-hero-glow"></div>
+          <div class="comm-hero-icon">📷</div>
+          <h3 class="comm-hero-title">Spotted a Water Issue?</h3>
+          <p class="comm-hero-sub">Upload a photo of pipe leaks, unauthorized discharge, or water wastage — our AI analyses it instantly and rewards you with AquaCoins!</p>
+          <div class="comm-reward-pills">
+            <span class="reward-pill pill-leak">🔧 Pipe Leak → up to 180 coins</span>
+            <span class="reward-pill pill-discharge">🚫 Unauthorized → up to 250 coins</span>
+            <span class="reward-pill pill-waste">💦 Wastage → up to 120 coins</span>
+          </div>
+          <button class="btn btn-primary" style="margin-top:20px;font-size:15px;padding:12px 32px" onclick="event.stopPropagation();openModal()">🚀 Submit Report Now</button>
+        </div>
+      </div>
+
+      <!-- Leaderboard -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🏆 Citizens Leaderboard</span>
+          <button class="btn btn-ghost btn-sm" onclick="loadLeaderboard()">↻ Refresh</button>
+        </div>
+        <div class="card-body" id="leaderboard-body" style="padding:0">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tier Guide + Report Feed -->
+    <div class="comm-bottom-grid">
+
+      <!-- Tier System -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">⭐ Tier Progression</span>
+        </div>
+        <div class="card-body">
+          <div class="tier-list">
+            <div class="tier-item" data-tier="Bronze">
+              <div class="tier-badge tier-bronze">🥉</div>
+              <div class="tier-info">
+                <div class="tier-name">Bronze Guardian</div>
+                <div class="tier-range">0 – 149 AquaCoins</div>
+                <div class="tier-perk">Access to community feed & basic rewards</div>
+              </div>
+            </div>
+            <div class="tier-item" data-tier="Silver">
+              <div class="tier-badge tier-silver">🥈</div>
+              <div class="tier-info">
+                <div class="tier-name">Silver Protector</div>
+                <div class="tier-range">150 – 499 AquaCoins</div>
+                <div class="tier-perk">Priority report processing + 5% coin bonus</div>
+              </div>
+            </div>
+            <div class="tier-item" data-tier="Gold">
+              <div class="tier-badge tier-gold">🥇</div>
+              <div class="tier-info">
+                <div class="tier-name">Gold Sentinel</div>
+                <div class="tier-range">500 – 999 AquaCoins</div>
+                <div class="tier-perk">Water bill credits + exclusive badge</div>
+              </div>
+            </div>
+            <div class="tier-item" data-tier="Platinum">
+              <div class="tier-badge tier-platinum">💎</div>
+              <div class="tier-info">
+                <div class="tier-name">Platinum Champion</div>
+                <div class="tier-range">1000 – 1999 AquaCoins</div>
+                <div class="tier-perk">Utility vouchers + municipal recognition</div>
+              </div>
+            </div>
+            <div class="tier-item" data-tier="Legend">
+              <div class="tier-badge tier-legend">🌟</div>
+              <div class="tier-info">
+                <div class="tier-name">AquaLegend</div>
+                <div class="tier-range">2000+ AquaCoins</div>
+                <div class="tier-perk">Annual conservation award + policy input</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Reports Feed -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">📡 Live Report Feed</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select class="filter-select" id="feed-filter" onchange="loadReports()" style="font-size:11px;padding:4px 10px">
+              <option value="">All Types</option>
+              <option value="pipe_leak">Pipe Leaks</option>
+              <option value="unauthorized_discharge">Unauthorized</option>
+              <option value="water_wastage">Wastage</option>
+              <option value="other">Other</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" onclick="loadReports()">↻</button>
+          </div>
+        </div>
+        <div class="card-body" id="report-feed" style="max-height:420px;overflow-y:auto;padding:0">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Report Type Breakdown Chart -->
+    <div class="card mt-20">
+      <div class="card-header">
+        <span class="card-title">📊 Report Breakdown by Type</span>
+      </div>
+      <div class="card-body" style="display:flex;align-items:center;gap:40px;flex-wrap:wrap">
+        <canvas id="type-chart" width="220" height="220" style="max-width:220px"></canvas>
+        <div id="type-legend" style="flex:1"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Submit Report Modal ── -->
+<div class="comm-modal-backdrop" id="modal-backdrop" onclick="closeModal(event)">
+  <div class="comm-modal" id="report-modal">
+    <div class="comm-modal-header">
+      <div class="comm-modal-title">📷 Report Water Issue</div>
+      <button class="comm-modal-close" onclick="closeModal()">✕</button>
+    </div>
+
+    <div class="comm-modal-body" id="modal-form-body">
+      <!-- Step 1: Reporter Info -->
+      <div class="form-step active" id="step-1">
+        <div class="step-indicator">Step 1 of 3 — Your Details</div>
+        <div class="form-group">
+          <label class="form-label">Your Name *</label>
+          <input type="text" class="form-input" id="inp-name" placeholder="Enter your full name"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email (optional — for reward notifications)</label>
+          <input type="email" class="form-input" id="inp-email" placeholder="your@email.com"/>
+        </div>
+        <button class="btn btn-primary w-full" onclick="goStep(2)">Next →</button>
+      </div>
+
+      <!-- Step 2: Issue Details -->
+      <div class="form-step" id="step-2">
+        <div class="step-indicator">Step 2 of 3 — Issue Details</div>
+        <div class="form-group">
+          <label class="form-label">Issue Type *</label>
+          <div class="issue-type-grid" id="issue-type-grid">
+            <div class="issue-type-card" data-type="pipe_leak" onclick="selectType(this)">
+              <div class="issue-icon">🔧</div>
+              <div class="issue-label">Pipe Leak</div>
+              <div class="issue-coins">Up to 180 🪙</div>
+            </div>
+            <div class="issue-type-card" data-type="unauthorized_discharge" onclick="selectType(this)">
+              <div class="issue-icon">🚫</div>
+              <div class="issue-label">Unauthorized Discharge</div>
+              <div class="issue-coins">Up to 250 🪙</div>
+            </div>
+            <div class="issue-type-card" data-type="water_wastage" onclick="selectType(this)">
+              <div class="issue-icon">💦</div>
+              <div class="issue-label">Water Wastage</div>
+              <div class="issue-coins">Up to 120 🪙</div>
+            </div>
+            <div class="issue-type-card" data-type="other" onclick="selectType(this)">
+              <div class="issue-icon">🔍</div>
+              <div class="issue-label">Other Issue</div>
+              <div class="issue-coins">Up to 80 🪙</div>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Severity</label>
+          <div class="severity-grid">
+            <label class="severity-option" data-sev="Low"><input type="radio" name="severity" value="Low"/> <span class="sev-dot sev-low"></span> Low</label>
+            <label class="severity-option" data-sev="Medium"><input type="radio" name="severity" value="Medium" checked/> <span class="sev-dot sev-medium"></span> Medium</label>
+            <label class="severity-option" data-sev="High"><input type="radio" name="severity" value="High"/> <span class="sev-dot sev-high"></span> High</label>
+            <label class="severity-option" data-sev="Critical"><input type="radio" name="severity" value="Critical"/> <span class="sev-dot sev-critical"></span> Critical</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Location</label>
+          <input type="text" class="form-input" id="inp-location" placeholder="e.g. Near Zone A pump station, Street name..."/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea class="form-input" id="inp-desc" rows="3" placeholder="Describe what you saw..."></textarea>
+        </div>
+        <div style="display:flex;gap:12px">
+          <button class="btn btn-ghost" onclick="goStep(1)">← Back</button>
+          <button class="btn btn-primary" style="flex:1" onclick="goStep(3)">Next →</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Photo Upload -->
+      <div class="form-step" id="step-3">
+        <div class="step-indicator">Step 3 of 3 — Photo Evidence (+bonus coins!)</div>
+        <div class="upload-dropzone" id="upload-dropzone" onclick="document.getElementById('file-inp').click()" ondragover="handleDragOver(event)" ondrop="handleDrop(event)">
+          <div class="upload-icon" id="upload-icon">📸</div>
+          <div class="upload-text" id="upload-text">Click or drag photo here</div>
+          <div class="upload-sub" id="upload-sub">JPG, PNG, WEBP · Max 5MB · AI analysis included</div>
+          <div id="img-preview-wrap" style="display:none;margin-top:14px">
+            <img id="img-preview" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--border-glow)"/>
+          </div>
+        </div>
+        <input type="file" id="file-inp" accept="image/*" style="display:none" onchange="handleFileSelect(event)"/>
+
+        <div class="ai-badge-row" id="ai-badge-row" style="display:none">
+          <div class="ai-scan-badge">
+            <span class="ai-pulse"></span>
+            🤖 AI Vision will analyse your photo for automatic verification
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;margin-top:16px">
+          <button class="btn btn-ghost" onclick="goStep(2)">← Back</button>
+          <button class="btn btn-success" style="flex:1;font-size:14px" id="submit-btn" onclick="submitReport()">
+            🚀 Submit & Earn AquaCoins
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Success Panel -->
+    <div class="comm-success-panel" id="success-panel" style="display:none">
+      <div class="success-burst" id="success-burst"></div>
+      <div class="success-icon" id="success-icon">🎉</div>
+      <div class="success-title" id="success-title">Report Submitted!</div>
+      <div class="success-msg" id="success-msg"></div>
+      <div class="coins-awarded-box" id="coins-box" style="display:none">
+        <div class="coins-number" id="coins-number">+0</div>
+        <div class="coins-label">AquaCoins Earned</div>
+      </div>
+      <div class="ai-tags-row" id="ai-tags-row" style="display:none"></div>
+      <div class="success-tier-row" id="success-tier-row" style="display:none"></div>
+      <button class="btn btn-primary" style="margin-top:20px;width:100%" onclick="resetModal()">Submit Another Report</button>
+      <button class="btn btn-ghost" style="margin-top:8px;width:100%" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/community.js"></script>
+<script>
+// Particle canvas
+(function(){
+  const c=document.getElementById('particle-canvas');
+  const ctx=c.getContext('2d');
+  let W,H,pts=[];
+  function resize(){W=c.width=window.innerWidth;H=c.height=window.innerHeight;}
+  window.addEventListener('resize',resize);resize();
+  for(let i=0;i<60;i++)pts.push({x:Math.random()*2000,y:Math.random()*1200,r:Math.random()*2+0.5,vx:(Math.random()-0.5)*0.3,vy:-Math.random()*0.4-0.1,a:Math.random()});
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    pts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.a+=0.005;if(p.y<-5)p.y=H+5;if(p.x<0)p.x=W;if(p.x>W)p.x=0;ctx.beginPath();ctx.arc(p.x,p.y,p.r*(0.8+0.2*Math.sin(p.a)),0,Math.PI*2);ctx.fillStyle=`rgba(0,194,255,${0.4+0.3*Math.sin(p.a)})`;ctx.fill();});
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>
+</body>
+</html>

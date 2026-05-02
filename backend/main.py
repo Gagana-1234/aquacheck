@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -9,9 +9,11 @@ from typing import Optional, List
 import math
 import os
 import pathlib
+import random
+import re
 
 from database import engine, get_db, SessionLocal
-from models import Base, Zone, Reading, Alert, RedistributionPlan
+from models import Base, Zone, Reading, Alert, RedistributionPlan, CommunityReport, CitizenReward
 from anomaly import get_anomaly_explanation
 from redistribution import suggest_redistribution, save_redistribution_plan
 from predict import forecast_zone, compute_network_health
@@ -45,6 +47,8 @@ if _FRONTEND_DIR.exists():
     if (_FRONTEND_DIR / "js").exists():
         app.mount("/js", StaticFiles(directory=str(_FRONTEND_DIR / "js")), name="js")
         app.mount("/app/js", StaticFiles(directory=str(_FRONTEND_DIR / "js")), name="app_js")
+    if (_FRONTEND_DIR / "images").exists():
+        app.mount("/images", StaticFiles(directory=str(_FRONTEND_DIR / "images")), name="images")
 
 @app.get("/")
 def root():
@@ -470,3 +474,359 @@ def get_alerts(resolved: Optional[bool] = Query(None), db: Session = Depends(get
             "resolved": a.resolved,
         })
     return result
+
+
+# ─── Community Reporting & Rewards ───────────────────────────────────────────
+
+COIN_TABLE = {
+    "pipe_leak": {"Low": 30, "Medium": 60, "High": 100, "Critical": 180},
+    "unauthorized_discharge": {"Low": 50, "Medium": 90, "High": 150, "Critical": 250},
+    "water_wastage": {"Low": 20, "Medium": 40, "High": 70, "Critical": 120},
+    "other": {"Low": 15, "Medium": 30, "High": 55, "Critical": 80},
+}
+
+TIER_THRESHOLDS = [
+    (2000, "Legend"),
+    (1000, "Platinum"),
+    (500, "Gold"),
+    (150, "Silver"),
+    (0, "Bronze"),
+]
+
+
+def compute_tier(coins: int) -> str:
+    for threshold, tier in TIER_THRESHOLDS:
+        if coins >= threshold:
+            return tier
+    return "Bronze"
+
+
+def simulate_ai_analysis(report_type: str, has_image: bool) -> dict:
+    """Simulate AI image analysis confidence score."""
+    base = 0.65 if has_image else 0.40
+    noise = random.uniform(-0.1, 0.2)
+    confidence = min(max(base + noise, 0.25), 0.98)
+    tags = {
+        "pipe_leak": ["water-spray", "pipe-damage", "wet-surface", "infrastructure"],
+        "unauthorized_discharge": ["discharge-point", "runoff", "contamination", "illegal-tap"],
+        "water_wastage": ["open-tap", "overflow", "irrigation-waste", "pooling-water"],
+        "other": ["water-issue", "infrastructure"],
+    }
+    detected = random.sample(tags.get(report_type, ["water-issue"]), k=min(2, len(tags.get(report_type, []))))
+    return {
+        "confidence": round(confidence, 3),
+        "detected_tags": detected,
+        "auto_verified": confidence >= 0.72,
+    }
+
+
+@app.post("/community/reports")
+def submit_community_report(
+    reporter_name: str = Body(...),
+    reporter_email: str = Body(""),
+    zone_id: Optional[int] = Body(None),
+    report_type: str = Body(...),
+    severity: str = Body("Medium"),
+    description: str = Body(""),
+    location_text: str = Body(""),
+    image_data: str = Body(""),
+    image_filename: str = Body(""),
+    db: Session = Depends(get_db),
+):
+    if report_type not in COIN_TABLE:
+        report_type = "other"
+    if severity not in ["Low", "Medium", "High", "Critical"]:
+        severity = "Medium"
+
+    ai = simulate_ai_analysis(report_type, bool(image_data))
+    coins = COIN_TABLE[report_type][severity]
+    # Bonus coins for high AI confidence
+    if ai["confidence"] >= 0.85:
+        coins = int(coins * 1.3)
+    status = "Verified" if ai["auto_verified"] else "Pending"
+
+    report = CommunityReport(
+        reporter_name=reporter_name,
+        reporter_email=reporter_email,
+        zone_id=zone_id,
+        report_type=report_type,
+        severity=severity,
+        description=description,
+        location_text=location_text,
+        image_data=image_data if image_data else None,
+        image_filename=image_filename if image_filename else None,
+        status=status,
+        aqua_coins_awarded=coins if status == "Verified" else 0,
+        ai_confidence=ai["confidence"],
+        submitted_at=datetime.utcnow(),
+        verified_at=datetime.utcnow() if status == "Verified" else None,
+    )
+    db.add(report)
+    db.flush()
+
+    # Update or create citizen reward record
+    citizen = db.query(CitizenReward).filter(
+        CitizenReward.citizen_name == reporter_name
+    ).first()
+    if not citizen:
+        citizen = CitizenReward(
+            citizen_name=reporter_name,
+            citizen_email=reporter_email,
+            total_aqua_coins=0,
+            total_reports=0,
+            verified_reports=0,
+        )
+        db.add(citizen)
+        db.flush()
+
+    citizen.total_reports += 1
+    citizen.last_activity = datetime.utcnow()
+    if status == "Verified":
+        citizen.total_aqua_coins += coins
+        citizen.verified_reports += 1
+    citizen.tier = compute_tier(citizen.total_aqua_coins)
+
+    db.commit()
+    db.refresh(report)
+
+    return {
+        "id": report.id,
+        "status": status,
+        "aqua_coins_awarded": report.aqua_coins_awarded,
+        "ai_confidence": ai["confidence"],
+        "ai_tags": ai["detected_tags"],
+        "auto_verified": ai["auto_verified"],
+        "citizen_total_coins": citizen.total_aqua_coins,
+        "citizen_tier": citizen.tier,
+        "message": (
+            f"Report verified! You earned {coins} AquaCoins 🎉"
+            if status == "Verified"
+            else "Report submitted! Pending manual verification."
+        ),
+    }
+
+
+@app.get("/community/reports")
+def get_community_reports(
+    status: Optional[str] = Query(None),
+    report_type: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    query = db.query(CommunityReport)
+    if status:
+        query = query.filter(CommunityReport.status == status)
+    if report_type:
+        query = query.filter(CommunityReport.report_type == report_type)
+    reports = query.order_by(CommunityReport.submitted_at.desc()).limit(limit).all()
+    result = []
+    for r in reports:
+        zone = db.query(Zone).filter(Zone.id == r.zone_id).first() if r.zone_id else None
+        result.append({
+            "id": r.id,
+            "reporter_name": r.reporter_name,
+            "zone_id": r.zone_id,
+            "zone_name": zone.name if zone else "Unknown Location",
+            "report_type": r.report_type,
+            "severity": r.severity,
+            "description": r.description,
+            "location_text": r.location_text,
+            "status": r.status,
+            "aqua_coins_awarded": r.aqua_coins_awarded,
+            "ai_confidence": r.ai_confidence,
+            "submitted_at": r.submitted_at.isoformat(),
+            "has_image": bool(r.image_data),
+        })
+    return result
+
+
+@app.get("/community/reports/{report_id}")
+def get_report_detail(report_id: int, db: Session = Depends(get_db)):
+    r = db.query(CommunityReport).filter(CommunityReport.id == report_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Report not found")
+    zone = db.query(Zone).filter(Zone.id == r.zone_id).first() if r.zone_id else None
+    return {
+        "id": r.id,
+        "reporter_name": r.reporter_name,
+        "reporter_email": r.reporter_email,
+        "zone_id": r.zone_id,
+        "zone_name": zone.name if zone else "Unknown Location",
+        "report_type": r.report_type,
+        "severity": r.severity,
+        "description": r.description,
+        "location_text": r.location_text,
+        "status": r.status,
+        "aqua_coins_awarded": r.aqua_coins_awarded,
+        "ai_confidence": r.ai_confidence,
+        "submitted_at": r.submitted_at.isoformat(),
+        "image_data": r.image_data,
+        "image_filename": r.image_filename,
+    }
+
+
+@app.post("/community/reports/{report_id}/verify")
+def manually_verify_report(report_id: int, db: Session = Depends(get_db)):
+    r = db.query(CommunityReport).filter(CommunityReport.id == report_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if r.status == "Verified":
+        return {"status": "already_verified"}
+
+    coins = COIN_TABLE.get(r.report_type, COIN_TABLE["other"]).get(r.severity, 30)
+    r.status = "Verified"
+    r.aqua_coins_awarded = coins
+    r.verified_at = datetime.utcnow()
+
+    citizen = db.query(CitizenReward).filter(CitizenReward.citizen_name == r.reporter_name).first()
+    if citizen:
+        citizen.total_aqua_coins += coins
+        citizen.verified_reports += 1
+        citizen.tier = compute_tier(citizen.total_aqua_coins)
+        citizen.last_activity = datetime.utcnow()
+
+    db.commit()
+    return {"status": "verified", "aqua_coins_awarded": coins}
+
+
+@app.get("/community/leaderboard")
+def get_leaderboard(limit: int = Query(10, ge=1, le=50), db: Session = Depends(get_db)):
+    citizens = (
+        db.query(CitizenReward)
+        .order_by(CitizenReward.total_aqua_coins.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "rank": i + 1,
+            "citizen_name": c.citizen_name,
+            "total_aqua_coins": c.total_aqua_coins,
+            "total_reports": c.total_reports,
+            "verified_reports": c.verified_reports,
+            "tier": c.tier,
+            "joined_at": c.joined_at.isoformat(),
+        }
+        for i, c in enumerate(citizens)
+    ]
+
+
+@app.get("/community/stats")
+def get_community_stats(db: Session = Depends(get_db)):
+    total_reports = db.query(CommunityReport).count()
+    verified = db.query(CommunityReport).filter(CommunityReport.status == "Verified").count()
+    pending  = db.query(CommunityReport).filter(CommunityReport.status == "Pending").count()
+    total_coins = db.query(func.sum(CitizenReward.total_aqua_coins)).scalar() or 0
+    active_citizens = db.query(CitizenReward).count()
+
+    by_type = (
+        db.query(CommunityReport.report_type, func.count().label("count"))
+        .group_by(CommunityReport.report_type)
+        .all()
+    )
+
+    # Community-reported zones with most issues (for redistribution insights)
+    community_hotspots = (
+        db.query(CommunityReport.zone_id, func.count().label("cnt"))
+        .filter(CommunityReport.zone_id != None, CommunityReport.status == "Verified")
+        .group_by(CommunityReport.zone_id)
+        .order_by(func.count().desc())
+        .limit(5)
+        .all()
+    )
+    hotspot_list = []
+    for zh in community_hotspots:
+        zone = db.query(Zone).filter(Zone.id == zh.zone_id).first()
+        hotspot_list.append({
+            "zone_id": zh.zone_id,
+            "zone_name": zone.name if zone else "Unknown",
+            "verified_reports": zh.cnt,
+        })
+
+    return {
+        "total_reports": total_reports,
+        "verified_reports": verified,
+        "pending_reports": pending,
+        "total_aqua_coins_distributed": int(total_coins),
+        "active_citizens": active_citizens,
+        "by_type": [{"type": r.report_type, "count": r.count} for r in by_type],
+        "community_hotspots": hotspot_list,
+    }
+
+
+@app.get("/community/citizen/{name}")
+def get_citizen_profile(name: str, db: Session = Depends(get_db)):
+    citizen = db.query(CitizenReward).filter(CitizenReward.citizen_name == name).first()
+    if not citizen:
+        raise HTTPException(status_code=404, detail="Citizen not found")
+    reports = (
+        db.query(CommunityReport)
+        .filter(CommunityReport.reporter_name == name)
+        .order_by(CommunityReport.submitted_at.desc())
+        .all()
+    )
+    report_list = [
+        {
+            "id": r.id,
+            "report_type": r.report_type,
+            "severity": r.severity,
+            "status": r.status,
+            "aqua_coins_awarded": r.aqua_coins_awarded,
+            "submitted_at": r.submitted_at.isoformat(),
+        }
+        for r in reports
+    ]
+    next_tier_info = None
+    for threshold, tier in reversed(TIER_THRESHOLDS):
+        if citizen.total_aqua_coins < threshold:
+            next_tier_info = {"tier": tier, "coins_needed": threshold - citizen.total_aqua_coins}
+    return {
+        "citizen_name": citizen.citizen_name,
+        "citizen_email": citizen.citizen_email,
+        "total_aqua_coins": citizen.total_aqua_coins,
+        "total_reports": citizen.total_reports,
+        "verified_reports": citizen.verified_reports,
+        "tier": citizen.tier,
+        "joined_at": citizen.joined_at.isoformat(),
+        "last_activity": citizen.last_activity.isoformat(),
+        "next_tier": next_tier_info,
+        "reports": report_list,
+    }
+
+
+@app.get("/community/redistribution-insights")
+def get_community_redistribution_insights(db: Session = Depends(get_db)):
+    """Enhance redistribution plan with community-reported leak hotspots."""
+    base = suggest_redistribution(db)
+
+    # Zones with highest community-reported issues (verified leaks/wastage)
+    hotspot_zones = (
+        db.query(CommunityReport.zone_id, func.count().label("cnt"))
+        .filter(
+            CommunityReport.zone_id != None,
+            CommunityReport.status == "Verified",
+            CommunityReport.report_type.in_(["pipe_leak", "unauthorized_discharge"]),
+        )
+        .group_by(CommunityReport.zone_id)
+        .order_by(func.count().desc())
+        .all()
+    )
+    hotspot_ids = {h.zone_id: h.cnt for h in hotspot_zones}
+
+    # Annotate transfers with community urgency flag
+    for t in base.get("transfers", []):
+        to_id = t.get("to_zone_id")
+        community_reports = hotspot_ids.get(to_id, 0)
+        t["community_reports"] = community_reports
+        t["community_urgency"] = "High" if community_reports >= 3 else ("Medium" if community_reports >= 1 else "Normal")
+        if community_reports >= 2:
+            t["amount_litres"] = round(t.get("amount_litres", 0) * 1.15, 2)  # 15% boost for reported zones
+            t["community_boost"] = True
+        else:
+            t["community_boost"] = False
+
+    base["community_hotspots"] = [
+        {"zone_id": zid, "report_count": cnt}
+        for zid, cnt in hotspot_ids.items()
+    ]
+    return base

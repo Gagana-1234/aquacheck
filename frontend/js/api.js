@@ -4,6 +4,9 @@ const API_BASE = (window.location.hostname === 'localhost' || window.location.ho
   ? 'http://localhost:8000'
   : '';
 
+// Expose globally so community.js and other scripts can use it
+window.API_BASE = API_BASE;
+
 async function apiFetch(path, options = {}) {
   const url = `${API_BASE}${path}`;
   try {
