@@ -140,6 +140,7 @@
     <div class="top-bar-right">
       <button class="btn btn-ghost btn-sm" onclick="loadAll()">↻ Refresh</button>
       <button class="btn btn-success btn-sm" onclick="verifyAll()">✅ Verify All Pending</button>
+      <button class="btn btn-ghost btn-sm" style="border-color:var(--accent-red);color:var(--accent-red)" onclick="logout()">🔒 Logout</button>
     </div>
   </div>
 
@@ -446,6 +447,14 @@ function timeAgo(iso) {
 }
 
 function loadAll() { loadStats(); loadReports(); }
+
+function logout() {
+  sessionStorage.removeItem('aw_admin');
+  document.getElementById('pw-gate').style.display = 'flex';
+  document.getElementById('pw-input').value = '';
+  document.getElementById('pw-err').textContent = '';
+  setTimeout(() => document.getElementById('pw-input').focus(), 100);
+}
 
 /* ── Password Gate ── */
 const ADMIN_PW = 'aquaadmin2024';
