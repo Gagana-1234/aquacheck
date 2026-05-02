@@ -258,20 +258,39 @@ window.handleDragOver = handleDragOver;
 window.handleDrop = handleDrop;
 
 function processFile(file) {
-  if (file.size > 5 * 1024 * 1024) { alert('File too large — max 5MB'); return; }
+  if (file.size > 10 * 1024 * 1024) { alert('File too large — max 10MB'); return; }
   imageFilename = file.name;
+
   const reader = new FileReader();
   reader.onload = (e) => {
-    imageBase64 = e.target.result.split(',')[1];
-    document.getElementById('img-preview').src = e.target.result;
-    document.getElementById('img-preview-wrap').style.display = 'block';
-    document.getElementById('upload-icon').textContent = '✅';
-    document.getElementById('upload-text').textContent = file.name;
-    document.getElementById('upload-sub').textContent = `${(file.size/1024).toFixed(1)} KB`;
-    document.getElementById('ai-badge-row').style.display = 'block';
+    // Compress image using canvas before sending to backend
+    const img = new Image();
+    img.onload = () => {
+      const MAX_W = 800;
+      const scale = img.width > MAX_W ? MAX_W / img.width : 1;
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      // Compress to JPEG at 70% quality
+      const compressed = canvas.toDataURL('image/jpeg', 0.70);
+      imageBase64 = compressed.split(',')[1];
+
+      const compressedKB = Math.round(imageBase64.length * 0.75 / 1024);
+      document.getElementById('img-preview').src = compressed;
+      document.getElementById('img-preview-wrap').style.display = 'block';
+      document.getElementById('upload-icon').textContent = '✅';
+      document.getElementById('upload-text').textContent = file.name;
+      document.getElementById('upload-sub').textContent = `${compressedKB} KB (compressed)`;
+      document.getElementById('ai-badge-row').style.display = 'block';
+    };
+    img.src = e.target.result;
   };
   reader.readAsDataURL(file);
 }
+
 
 /* ── Submit Report ── */
 async function submitReport() {

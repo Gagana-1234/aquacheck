@@ -53,6 +53,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Allow larger request bodies for base64 image uploads (10 MB)
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+
+class LimitUploadSize(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        request._body_size_limit = 10 * 1024 * 1024  # 10 MB
+        return await call_next(request)
+
+app.add_middleware(LimitUploadSize)
+
 # ─── Frontend Static File Serving ───────────────────────────────────────────
 # Serves the entire frontend from the same FastAPI server.
 # Works both locally (localhost:8000) and on any cloud platform.
